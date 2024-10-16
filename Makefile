@@ -7,7 +7,7 @@ SOURCE = det.cpp gobbi.cpp histo_sort.cpp histo_read.cpp caen.cpp calibrate.cpp 
 #substitution reference $(var:pattern=replacement)
 OBJECT = $(patsubst %, $(BIN)/%, $(notdir $(SOURCE:.cpp=.o)))
 
-CFLAGS= -c -std=c++14 -I$(shell root-config --incdir)
+CFLAGS= -c -ggdb -std=c++14 -I$(shell root-config --incdir)
 COMPILER= g++
 LINKOPTION = $(shell root-config --libs)
 
