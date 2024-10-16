@@ -17,19 +17,21 @@
 using namespace std;
 
 //constructor
-telescope::telescope()
+telescope::telescope(bool S800)
 {
  //Verify these numbers
   SiWidth = 6.42;
-  //switch which loss file is used depending on the target.
-  ostringstream AllossesLF;
 
-  Allosses = new CLosses(10,"_Al.loss");
+  //switch which loss file is used depending on the target.
+
+  if (S800 == false) Allosses = new CLosses(7,"_Al.loss"); //don't need Al loss for S800
+  cout << "here2" << endl;
 
   Ran = CRandom::instance();
   Tthick = targthick::instance();
 
-  Targlosses = new CLosses(10,Tthick->TargType);
+  cout << "here3" << endl;
+  if (S800 == false) Targlosses = new CLosses(7,Tthick->TargType); //S800 targ loss in det.cpp
   cout << "Target Type: " << Tthick->TargType << endl;
 
   //CsI calibrations for clusters from proton calibrations
@@ -52,7 +54,7 @@ telescope::~telescope()
   delete Targlosses;
   delete Allosses;
   delete Ran;
-  delete Pid;
+  
   for (int i=0;i<4;i++)  delete PidECsI[i];
   delete calCsi_d;
   delete calCsi_t;
@@ -79,15 +81,13 @@ void telescope::init(int id0)
   Ycenter = YcenterA[id];
   
 
-  ostringstream outstring;  
-  outstring << "pid_quad" << id+1;
-  Pid = new pid(outstring.str());
+  ostringstream outstring;
   
   for (int i=0;i<4;i++)
   {
     outstring.str("");
     outstring << "pid_quad" << id+1 << "_CsI"<< i+1;
-    PidECsI[i] = new pid(outstring.str());
+    PidECsI[i] = new pid(outstring.str(), false); //don't use S800 zline filepath
   }
 
 

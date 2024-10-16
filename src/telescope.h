@@ -30,7 +30,7 @@ struct lines
 class telescope
 {
  public:
-  telescope();
+  telescope(bool S800); //bool for S800 as the 5th "telescope"
   ~telescope();
   void init(int);
   void SetTarget(double, float);

@@ -36,6 +36,11 @@ void fiber::clear() {
 	badty = false;
 	xindices.clear();
 	yindices.clear();
+
+  thetadeg = -999.;
+  phideg = -999.;
+  theta = -999.;
+  phi = -999.;
 }
 
 /**
@@ -46,8 +51,8 @@ void fiber::clear() {
  * "center hit" in the front layer (i.e. the front layer hit with the largest ToT). Note
  * also that the fiber layers are as such:
  * 
- * Horzontal (blue) fiber gives x position
- * Vertical (red) fiber gives y position
+ * Vertical (blue) fiber gives x position
+ * Horizontal (red) fiber gives y position
  */
 bool fiber::make_2d(Event* horz, Event* vert, double distance) {
 	// Set default values

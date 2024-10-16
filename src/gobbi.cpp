@@ -1,6 +1,7 @@
 #include "gobbi.h"
 
-//Johnathan Phillips 2024_08_29
+//Written by Nicolas Dronchi
+//Modified by Johnathan Phillips 2024_08_29
 //Class written to handle all specifics of the gobbi array
 //such as communicating with HINP, calibrations, Checking for charge sharing in neighbor
 //calculating geometry
@@ -48,16 +49,17 @@ gobbi::gobbi(TRandom* ran, histo_sort * Histo1)
 
   for (int id=0;id<4;id++)
   {
-    Telescope[id] = new telescope();
+    Telescope[id] = new telescope(false); //false for not S800
     Telescope[id]->init(id); //tells Telescope what position it is in
-    if (id <4)Telescope[id]->load(0,0,15,15,   
+    Telescope[id]->load(0,0,15,15,   
                         16,16,31,31,
                         0,15,15,0,  //These values give slightly fuzzy quadrants, intentional
                         16,31,31,16);  //load strip limts for each CsI crystal
   }
 
   //TODO don't think I need to do init() for this, but check that
-  S800 = new telescope(); //Create 5th "telescope" to hold S800 solutions
+  S800 = new telescope(false); //Create 5th "telescope" to hold S800 solutions, true for S800
+  S800->init(0);
 
   
   for (int i=0;i<4;i++)
@@ -91,7 +93,8 @@ gobbi::~gobbi()
   delete CsITimecal;
   delete FrontLowEcal;
   delete BackLowEcal;
-  //delete[] Telescope; //not needed as it is in automatic memory, didn't call with new
+  //delete [4] Telescope; //not needed as it is in automatic memory, didn't call with new
+  delete S800; //not needed as it is in automatic memory, didn't call with new
   delete CsITDC;
   delete CsIADC;
   delete SiADC; //added in these deletes, not sure they should be here?
@@ -101,10 +104,6 @@ void gobbi::SetTarget(double Targetdist, float TargetThickness)
 {
   //TODO Target position will need to change with S800 setting
   for (int id=0;id<4;id++){ Telescope[id]->SetTarget(Targetdist, TargetThickness); }
-  //WW is ~30 cm from Gobbi, need to get more accurate measurement
-  //TODO if I make a 5th S800 telescope, could use this logic
-  //Telescope[4]->SetTarget(Targetdist+32, TargetThickness); //Likely position
-  //Telescope[4]->SetTarget(Targetdist+33, TargetThickness); 
 
   //S800 is how far from the target? Will be const
   //Guess 70 cm?, TODO must get actual distance

@@ -29,7 +29,8 @@ public:
 	
 
 	double x, y, r;
-	double thetadeg, phideg;
+	double thetadeg, phideg; //deg
+  double theta, phi; //rad
 
 	// Index of hit (type dataTiming) in vector with max ToT value
 	int posmaxhorz;

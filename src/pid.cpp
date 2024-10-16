@@ -3,11 +3,12 @@
 /**
  * Constructor reads in banana gates
  */
-pid::pid(string file)
+pid::pid(string file, bool S800)
 {
   string name;
 
-  name = "zline/"+file +".zline";
+  if (S800 == false) name = "zline/Gobbi/"+file +".zline";
+  if (S800 == true) name = "zline/"+file +".zline";
   cout << "opening zline file: " << name << endl;
 
   ifstream ifile(name.c_str());

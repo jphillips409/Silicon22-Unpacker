@@ -109,7 +109,7 @@ void S800::Init(int setting)
   } 
 
   cout << "Loading beam_pid zline/" << beam_pid_name << ".zline" << endl;
-  beam_pid = new pid(beam_pid_name);
+  beam_pid = new pid(beam_pid_name, true); //directory for S800 zlines
 
   cout << "s800 rigidity brho = " << brho << endl;
   track->brho = brho;
@@ -146,7 +146,7 @@ void S800::Init(int setting)
         name = Form("KSetting/s800_residue_K_%s",beams[j].c_str());
 
       cout << "for s800setting " << i << " load " << name << endl;
-      residue_pid[i][j] = new pid(name);
+      residue_pid[i][j] = new pid(name, true); //use S800 directory
     }
   }
 

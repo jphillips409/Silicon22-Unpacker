@@ -18,7 +18,7 @@ using namespace std;
 class pid
 {
  public:
-  pid(string file); 
+  pid(string file, bool S800); 
   ~pid();
   ZApar ** par;  //!< individual banana gates
   int nlines=0;    //!< number of banana gated stored 

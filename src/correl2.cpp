@@ -16,7 +16,12 @@ correl2::correl2()
   particle.push_back(&alpha);
   
   //new slew of particles
+  //Magnesium isotopes
+  Mg20.init(12,20);
+  particle.push_back(&Mg20);
   //Silicon isotopes
+  Si22.init(14,22);
+  particle.push_back(&Si22);
   Si28.init(14,28);
   particle.push_back(&Si28);
   //Phosphorus isotopes
@@ -189,7 +194,16 @@ float correl2::findErel()
     check_ke = eKinNew - Kinematics.scale*frag[i]->mass;
     check_mass = Kinematics.scale*frag[i]->mass;
   }
-
+  
+  //Finding the heavy fragment cos(theta)
+  //TODO heavy fragment always N-1 index?
+  float mv = 0.;
+  for (int i=0;i<3;i++)
+  {
+    mv += pow(frag[N-1]->MomCM[i],2);
+  }
+  mv = sqrt(mv);
+  cos_thetaH = frag[N-1]->MomCM[2]/mv;
 
   //In case of 2p decay find angle between heavy fragment's momentum and CM momentum?
   if (N == 3)

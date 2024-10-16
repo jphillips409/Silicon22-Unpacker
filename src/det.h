@@ -110,6 +110,10 @@ class det
   solution * EventMixerSingleP[3000];
 
   correl2 Correl;
+  void corr_1H();
+  void corr_21Al();
+  void corr_22Si();
+  void corr_23P();
 
   //void treeGrow();
   //void loadTree(Event * event);

@@ -73,6 +73,8 @@ const double mass_20Ne = -7.0419;
 const double mass_21Ne = -5.7317;
 const double mass_22Ne = -8.0247;
 const double mass_19Na = 12.9293;
+const double mass_20Mg = 17.4777;
+const double mass_21Al = 27.100;
 
 //total masses
 const double Mass_n = m0+mass_n;
@@ -136,6 +138,7 @@ const double Mass_20Ne = 20.*m0 + mass_20Ne;
 const double Mass_21Ne = 21.*m0 + mass_21Ne;
 const double Mass_22Ne = 22.*m0 + mass_22Ne;
 const double Mass_19Na = 19.*m0 + mass_19Na;
-
+const double Mass_20Mg = 20.*m0 + mass_20Mg;
+const double Mass_21Al = 21.*m0 + mass_21Al;
 
 #endif

@@ -28,13 +28,19 @@ class histo_sort
 	Event red;
 	Event blue;
 
-  //correlations
   //de
   TDirectoryFile * dirdee; //!< directory for dee maps
   
 
   //fiberArray
   TDirectoryFile * dirFiber; //!< directory for fiber array
+  //Directories for 1d TOA and TOT plots for both boards
+  TDirectory * dir1dBoard0TOA_R;
+  TDirectory * dir1dBoard0TOT_R;
+
+  TDirectory * dir1dBoard1TOA_R;
+  TDirectory * dir1dBoard1TOT_R;
+
   TDirectory* dirHitMap; // directory for plotting xy-correlated event parameters
 
   //Gobbi
@@ -69,7 +75,7 @@ class histo_sort
   TDirectoryFile * dirSum; //!< directory for summary spectra
 
   
-  //CEARAR
+  //CAESAR
   TDirectoryFile *dirC; //!< directory for the CEASAR info
   TDirectory * dirEnergy; //!< CsI energies
   TDirectory * dirTime; //!< CsI time
@@ -195,6 +201,13 @@ class histo_sort
 	TH1I* toa_hist;
 	TH2I* tot_summary_blue;
 	TH2I* tot_summary_red;
+
+  //1d spectra
+  TH1I * B0TOA_R[64];
+  TH1I * B0TOT_R[64];
+
+  TH1I * B1TOA_R[64];
+  TH1I * B1TOT_R[64];
 
 	TH2I* Fiber_ixiy;
 	TH2I* Fiber_xy;
@@ -447,6 +460,51 @@ class histo_sort
   TH1I * Vlab_Cl33;
   TH1I * Vlab_Cl34;
 
+  TDirectoryFile * dirInvMass; //!< directory for all correlations and inv-mass
+  TDirectory * dir1H;
+  TDirectory * dir21Al;
+  TDirectory * dir22Si;
+  TDirectory * dir23P;
+  TDirectory * dir3p20Mg;
+  TDirectory * dirp22Si;
+
+  //********************************************************
+  //Correlation hists
+  //********************************************************
+  //protons  
+  TH1I * protonKE;
+
+  //Al21 -> p + 20Mg
+  TH1I * Erel_21Al_p20Mg;
+  TH1I * Ex_21Al_p20Mg;
+  TH1I * ThetaCM_21Al_p20Mg;
+  TH1I * VCM_21Al_p20Mg;
+  TH2I * Erel_p20Mg_costhetaH;
+  TH2I * p20Mg_VCMvsErel;
+
+  //Si22 -> 2p + 20Mg
+  TH1I * Erel_22Si_2p20Mg;
+  TH1I * Ex_22Si_2p20Mg;
+  TH1I * ThetaCM_22Si_2p20Mg;
+  TH1I * VCM_22Si_2p20Mg;
+  TH2I * Erel_2p20Mg_costhetaH;
+  TH2I * pp20Mg_VCMvsErel;
+
+  //P23 -> 3p + 20Mg
+  TH1I * Erel_23P_3p20Mg;
+  TH1I * Ex_23P_3p20Mg;
+  TH1I * ThetaCM_23P_3p20Mg;
+  TH1I * VCM_23P_3p20Mg;
+  TH2I * Erel_3p20Mg_costhetaH;
+  TH2I * ppp20Mg_VCMvsErel;
+
+  //P23 -> p + 22Si
+  TH1I * Erel_23P_p22Si;
+  TH1I * Ex_23P_p22Si;
+  TH1I * ThetaCM_23P_p22Si;
+  TH1I * VCM_23P_p22Si;
+  TH2I * Erel_p22Si_costhetaH;
+  TH2I * p22Si_VCMvsErel;
 
 };
 #endif

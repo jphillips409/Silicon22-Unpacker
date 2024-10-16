@@ -13,7 +13,7 @@
 
 #include <iostream>
 //TODO do I need this config path? Seems needed for gain matching
-#define CONFIGPATH "/home/Neon16/Silicon22sort/cal/fibers/"
+#define CONFIGPATH "/home/Silicon22/Silicon22sort/cal/fibers/"
 
 //TODO need to link with correct histos
 // Constructor
@@ -95,7 +95,6 @@ bool janus::unpack(ifstream *pevtfile) {
 			tot = hit.ToTmatched;
 			toa = hit.ToA;
 			pos = hit.pos;
-
 			// Fill histograms
 			if (toa > -1)
 				Histo->toa_hist->Fill(toa);
@@ -103,6 +102,18 @@ bool janus::unpack(ifstream *pevtfile) {
 				Histo->tot_summary_red->Fill(pos, tot);
 			else if (tot > -1 && boardID == 1)
 				Histo->tot_summary_blue->Fill(pos, tot);
+
+      //Fill 1d raw hists
+      if (boardID == 0)
+      {
+        Histo->B0TOA_R[pos]->Fill(toa);
+        Histo->B0TOT_R[pos]->Fill(tot);
+      }
+      if (boardID == 1)
+      {
+        Histo->B1TOA_R[pos]->Fill(toa);
+        Histo->B1TOT_R[pos]->Fill(tot);
+      }
 		}
 		
     //Fill the event 
@@ -146,13 +157,13 @@ void janus::analyze()
 	Histo->Fiber_ixiy->Fill(Fiber->ix, Fiber->iy);
 	Histo->Fiber_xy->Fill(Fiber->x, Fiber->y);
 
-	ev = janusevts[idhorz].GetTimingEvent(Fiber->posmaxhorz);
+	ev = janusevts[idvert].GetTimingEvent(Fiber->posmaxhorz);
   if (janusevts[idhorz].GetBoardID() == 0) cout << "test here!!!!!!! " << endl;
-	Histo->Fiber_tot_summary_x->Fill(ev.pos, ev.ToTmatched);
+	Histo->tot_summary_blue->Fill(ev.pos, ev.ToTmatched);
 	Histo->Fiber_toax->Fill(ev.ToA);
 
-	ev = janusevts[idvert].GetTimingEvent(Fiber->posmaxvert);
-	Histo->Fiber_tot_summary_y->Fill(ev.pos, ev.ToTmatched);
+	ev = janusevts[idhorz].GetTimingEvent(Fiber->posmaxvert);
+	Histo->tot_summary_red->Fill(ev.pos, ev.ToTmatched);
 	Histo->Fiber_toay->Fill(ev.ToA);
 
   // Plot hit map for individual events

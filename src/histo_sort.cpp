@@ -44,6 +44,34 @@ histo_sort::histo_sort(string suffix)
   dirDEEplots = new TDirectoryFile("DEEplots","DEEplots");
   dirhitmaps = new TDirectoryFile("hitmaps","hitmaps");
 
+  //directories for Ceasar
+  dirC = new TDirectoryFile("ceasar","ceasar");
+  dirEnergy = dirC->mkdir("raw","energyC");
+  dirTime = dirC->mkdir("timeC","timeC");
+  dirTimeS800 = dirC->mkdir("time&S800","time&S800");
+  dirEcal = dirC->mkdir("cal","cal");
+  dirRSum = dirC->mkdir("RSum","Rsum");
+  dirCSum = dirC->mkdir("CSum","Csum");
+  dirCa36 = dirC->mkdir("Ca36","Ca36");
+
+  //fiber
+  dirFiber = new TDirectoryFile("Fiber","Fiber");
+  dir1dBoard0TOA_R = dirFiber->mkdir("Board0TOA_R","Board0TOA_R");
+  dir1dBoard0TOT_R = dirFiber->mkdir("Board0TOT_R","Board0TOT_R");
+  dir1dBoard1TOA_R = dirFiber->mkdir("Board1TOA_R","Board1TOA_R");
+  dir1dBoard1TOT_R = dirFiber->mkdir("Board1TOT_R","Board0TOT_R");
+  dirHitMap = dirFiber->mkdir("FiberHitMap","FiberHitMap");
+
+  //Inv mass directories
+  dirInvMass = new TDirectoryFile("InvMass", "InvMass");
+  dir1H = dirInvMass->mkdir("1H","1H");
+  dir21Al = dirInvMass->mkdir("21Al","21Al");
+  dir22Si = dirInvMass->mkdir("22Si","22Si");
+  dir23P = dirInvMass->mkdir("23P","23P");
+  dir3p20Mg = dir23P->mkdir("3p20Mg","3p20Mg");
+  dirp22Si = dir23P->mkdir("22Si","22Si");
+
+
   //for calibrated spectra
   int Nbin = 5000;
   float Ecal_Emax = 50.0;
@@ -88,7 +116,7 @@ histo_sort::histo_sort(string suffix)
   sumBacklowE_cal = new TH2I("sumBacklowE_cal","",Nchan,0,Nchan,Nbin,0,250);
   sumBacklowE_cal_thetacorr = new TH2I("sumBacklowE_cal_thetacorr","",Nchan,0,Nchan,Nbin,0,250);
 
-  sumCsIE_R = new TH2I("sumCsIE_R","",16,0,16,1024,0,8192);
+  sumCsIE_R = new TH2I("sumCsIE_R","",16,0,16,1024,0,4095);
   sumCsIE_R->SetOption("colz");
   sumCsIE_cal = new TH2I("sumCsIE_cal","",16,0,16,Nbin,0,CsI_Emax);
   sumCsIE_cal->SetOption("colz");
@@ -315,33 +343,46 @@ histo_sort::histo_sort(string suffix)
 
   file->cd();
 
-  
-  //directories for Ceasar
-  dirC = new TDirectoryFile("ceasar","ceasar");
-  dirEnergy = dirC->mkdir("raw","energyC");
-  dirTime = dirC->mkdir("timeC","timeC");
-  dirTimeS800 = dirC->mkdir("time&S800","time&S800");
-  dirEcal = dirC->mkdir("cal","cal");
-  dirRSum = dirC->mkdir("RSum","Rsum");
-  dirCSum = dirC->mkdir("CSum","Csum");
-  dirCa36 = dirC->mkdir("Ca36","Ca36");
 
   //fiber
-  dirFiber = new TDirectoryFile("Fiber","Fiber");
-  dirHitMap = dirFiber->mkdir("FiberHitMap","FiberHitMap");
-
   dirFiber->cd();
-	// singles histograms
-  toa_hist = new TH1I("toa_hist", "Time of Arrival", 4096, 0, 4096);
 	tot_summary_blue = new TH2I("tot_summary_blue", "Blue Fibers ToT Summary (gain-matched)", 64, 0, 64, 512, 0, 512);
 	tot_summary_red = new TH2I("tot_summary_red", "Red Fibers ToT Summary (gain-matched)", 64, 0, 64, 512, 0, 512);
+
+	// singles histograms
+  int fnum = 64;
+  //Make 1d plots
+  for (int i=0;i<fnum;i++)
+  {
+    dir1dBoard0TOA_R->cd();
+    name.str("");
+    name << "Board0_TOA_" << i << "_R";
+    B0TOA_R[i] = new TH1I(name.str().c_str(),"",1024,0,4095);
+
+    dir1dBoard0TOT_R->cd();
+    name.str("");
+    name << "Board0_TOT_" << i << "_R";
+    B0TOT_R[i] = new TH1I(name.str().c_str(),"",1024,0,4095);
+
+    dir1dBoard1TOA_R->cd();
+    name.str("");
+    name << "Board1_TOA_" << i << "_R";
+    B1TOA_R[i] = new TH1I(name.str().c_str(),"",1024,0,4095);
+
+    dir1dBoard1TOT_R->cd();
+    name.str("");
+    name << "Board1_TOT_" << i << "_R";
+    B1TOT_R[i] = new TH1I(name.str().c_str(),"",1024,0,4095);
+  }
+
+
+  toa_hist = new TH1I("toa_hist", "Time of Arrival", 4096, 0, 4096);
 
 	// matched events histograms
   dirHitMap->cd();
   Fiber_ixiy = new TH2I("Fiber_ixiy","",64,0,64,64,0,64);
   Fiber_xy = new TH2I("Fiber_xy","",64,-16,16,64,-16,16);
-	Fiber_tot_summary_x = new TH2I("Fiber_tot_summary_blue", "X Fibers ToT Summary (gain-matched, center hit)", 64, 0, 64, 512, 0, 512);
-	Fiber_tot_summary_y = new TH2I("Fiber_tot_summary_red", "Y Fibers ToT Summary (gain-matched, center hit)", 64, 0, 64, 512, 0, 512);
+
 	Fiber_totx = new TH1F("Fiber_totx","",64,-16,16);
   Fiber_toty = new TH1F("Fiber_toty","",64,-16,16);
   Fiber_postotx = new TH1F("Fiber_postotx","",64,0,64);
@@ -739,6 +780,50 @@ histo_sort::histo_sort(string suffix)
   Vlab_Cl32 = new TH1I("Vlab_Cl32","",100,0.1,0.5);
   Vlab_Cl33 = new TH1I("Vlab_Cl33","",100,0.1,0.5);
   Vlab_Cl34 = new TH1I("Vlab_Cl34","",100,0.1,0.5);
+
+
+  //********************************************************
+  //Correlation hists
+  //********************************************************
+  //Proton Directory
+  dir1H->cd();
+  protonKE = new TH1I("protonKE","",300,0,150); //500 keV bins
+
+  //Al21 -> p + Mg20
+  dir21Al->cd();
+  Erel_21Al_p20Mg = new TH1I("Erel_21Al_p20Mg","",100,0,20);
+  Ex_21Al_p20Mg = new TH1I("Ex_21Al_p20Mg","",375,0,15);
+  ThetaCM_21Al_p20Mg = new TH1I("ThetaCM_21Al_p20Mg","",200,0,10);
+  VCM_21Al_p20Mg = new TH1I("VCM_21Al_p20Mg","",400,2,8);
+  Erel_p20Mg_costhetaH = new TH2I("Erel_p20Mg_costhetaH","",100,0,8,25,-1,1);
+  p20Mg_VCMvsErel = new TH2I("p20Mg_VCMvsErel","",400,2,8,100,-5,15);
+
+  //Si22 -> 2p + 20Mg
+  dir22Si->cd();
+  Erel_22Si_2p20Mg = new TH1I("Erel_22Si_2p20Mg","",100,0,20);
+  Ex_22Si_2p20Mg = new TH1I("Ex_22Si_2p20Mg","",375,0,15);
+  ThetaCM_22Si_2p20Mg = new TH1I("ThetaCM_22Si_2p20Mg","",200,0,10);
+  VCM_22Si_2p20Mg = new TH1I("VCM_22Si_2p20Mg","",400,2,8);
+  Erel_2p20Mg_costhetaH = new TH2I("Erel_2p20Mg_costhetaH","",100,0,8,25,-1,1);
+  pp20Mg_VCMvsErel = new TH2I("pp20Mg_VCMvsErel","",400,2,8,100,-5,15);
+
+  //P23 -> 3p + 20Mg
+  dir3p20Mg->cd();
+  Erel_23P_3p20Mg = new TH1I("Erel_23P_3p20Mg","",100,0,20);
+  Ex_23P_3p20Mg = new TH1I("Ex_23P_3p20Mg","",375,0,15);
+  ThetaCM_23P_3p20Mg = new TH1I("ThetaCM_23P_3p20Mg","",200,0,10);
+  VCM_23P_3p20Mg = new TH1I("VCM_23P_3p20Mg","",400,2,8);
+  Erel_3p20Mg_costhetaH = new TH2I("Erel_3p20Mg_costhetaH","",100,0,8,25,-1,1);
+  ppp20Mg_VCMvsErel = new TH2I("ppp20Mg_VCMvsErel","",400,2,8,100,-5,15);
+
+  //P23 -> p + 22Si
+  dirp22Si->cd();
+  Erel_23P_p22Si = new TH1I("Erel_23P_p22Si","",100,0,20);
+  Ex_23P_p22Si = new TH1I("Ex_23P_p22Si","",375,0,15);
+  ThetaCM_23P_p22Si = new TH1I("ThetaCM_23P_p22Si","",200,0,10);
+  VCM_23P_p22Si = new TH1I("VCM_23P_p22Si","",400,2,8);
+  Erel_p22Si_costhetaH = new TH2I("Erel_p22Si_costhetaH","",100,0,8,25,-1,1);
+  p22Si_VCMvsErel = new TH2I("p22Si_VCMvsErel","",400,2,8,100,-5,15);
 
 
 }

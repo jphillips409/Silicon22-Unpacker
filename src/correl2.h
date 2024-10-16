@@ -35,7 +35,10 @@ class correl2
   parType He3;
   parType alpha;
 
+  //Magnesium isotopes
+  parType Mg20;
   //Silicon isotopes
+  parType Si22;
   parType Si28;
   //Phosphorus isotopes
   parType P30;
@@ -86,6 +89,7 @@ class correl2
   // int Norder;
   float Vlab;
 
+  float cos_thetaH;
 
   float thetaAlpha;
   float phiAlpha;

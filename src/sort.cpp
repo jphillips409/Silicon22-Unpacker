@@ -31,16 +31,16 @@ int main(int argc, char* argv[])
   string suffix = ""; //TODO no suffix for now
   int setting = 1;
 
-  //TODO this could be useful but needs to be commented out for code testing
+  //TODO choose a S800 setting. Defines gobbi distance and target thickness
   /*if (argc > 1)
   {
     suffix = argv[1];
-    if (suffix == "Kset4")
+    if (suffix == "setting1")
       setting = 1;
-    else if (suffix == "mixK")
-      setting = 1;
-    else if (suffix == "Caset2")
-      setting = 0;
+    else if (suffix == "setting2")
+      setting = 2;
+    else if (suffix == "setting3")
+      setting = 3;
     else
       abort();
   }*/
@@ -53,12 +53,12 @@ int main(int argc, char* argv[])
   ifstream scalarFile;
   ofstream crossSections;
 
-  /*if (suffix == "Kset4")
-    runFile.open("numbers.K35");
-  else if (suffix == "Caset2")
-    runFile.open("numbers.Ca36");
-  else if (suffix == "mixK")
-    runFile.open("numbers.mixK");
+  /*if (suffix == "setting1")
+    runFile.open("numbers.s1");
+  else if (suffix == "setting2")
+    runFile.open("numbers.s2");
+  else if (suffix == "setting3")
+    runFile.open("numbers.s3");
   else
     runFile.open("numbers.beam");*/
 
@@ -68,6 +68,9 @@ int main(int argc, char* argv[])
 
   histo_sort * Histo_sort = new histo_sort(suffix);
   histo_read * Histo_read = new histo_read(suffix);
+
+  targthick * TargThick;
+  TargThick = targthick::instance();
 
   //forest * Forest = new forest();
   unsigned short *point,*fragmentstart;
@@ -86,14 +89,6 @@ int main(int argc, char* argv[])
   int NSecondary = 0;
   int NGoodSecondary = 0;
   int totalRuntime = 0;
-
-  det Det(Histo_sort, Histo_read, setting);
-
-  //Set the sourceID for the S800 (normally 2) and secondary DAQ
-  //TODO need correct ID's for HINP, CAESAR, S800, and Janus
-  Det.SiID = 1;
-  Det.JanusID = 2;
-  Det.S800ID = 3;
 
   
   //check if this file exists
@@ -115,6 +110,8 @@ int main(int argc, char* argv[])
   int argcounter = 1;
 
 
+  int firstrunnum;
+
   // default case, get run numbers from numbers.beam
   if (argc == 1)
   {
@@ -125,6 +122,9 @@ int main(int argc, char* argv[])
       cout << "could not open numbers.beam" << endl;
       return 1; 
     }
+    runFile >> firstrunnum;
+    runFile.clear(); //clear bad state
+    runFile.seekg(0); //return to start
   }
 
   else if (argc == 2) // check to see if the argument if a file and if so get run numbers from it.
@@ -135,10 +135,19 @@ int main(int argc, char* argv[])
       argc = 1;
       cout << "using runs from " << argv[argcounter] << endl;
     }     
+    firstrunnum = atoi(argv[argcounter]);
   } 
+  TargThick->SetThick(runnum);
 
+  det Det(Histo_sort, Histo_read, setting);
 
+  //Set the sourceID for the S800 (normally 2) and secondary DAQ
+  //TODO need correct ID's for HINP, CAESAR, S800, and Janus
+  Det.SiID = 1;
+  Det.JanusID = 2;
+  Det.S800ID = 3;
 
+  int runcount = 0;
   for (;;)  //loop over run numbers
   {
     if (argc == 1) // get runnumbers from a file
@@ -159,6 +168,8 @@ int main(int argc, char* argv[])
         argcounter++;
       }
     }
+
+
     //check to see if at end of file
     if (runFile.eof())break;
     if (runFile.bad())break;
@@ -236,7 +247,7 @@ int main(int argc, char* argv[])
 
       string directory = Form("");
 
-      outstring << directory << "run" << number <<"/run-" << setfill('0') << setw(4) << number;
+      outstring << directory << "data/run" << number <<"/run-" << setfill('0') << setw(4) << number;
 //        outstring << directory << "/run-" << setfill('0') << setw(4) << number;
 
       if (iExtra == 0)
@@ -395,10 +406,10 @@ int main(int argc, char* argv[])
           //cout << hex << eventsourceID << " " << eventBarrierType << " " << dec << endl;
           //cout << "offset " << offset << endl;
         }
-        else
-        {
+        //else
+        //{
           //Buffers with no body header, for use with NSCLDAQ older than 11.0
-        }
+        //}
 
         int64_t fragmentTimestamp[5]={0};
         int32_t fragmentsourceID[5] ={-1};
@@ -479,7 +490,7 @@ int main(int argc, char* argv[])
             //offset+=fragmentsize[nFragment]/2; //Skipping the #words of the payload;
             //point +=14;
 
-            if (physicsEvent%1000 == 0) 
+            if (physicsEvent%5000 == 0) 
               cout << '\xd'<< physicsEvent << flush;
             physicsEvent++;
             
@@ -567,7 +578,6 @@ int main(int argc, char* argv[])
           }
 
           nFragment++;
-
         } //end loop over ring item
 
 
@@ -577,11 +587,8 @@ int main(int argc, char* argv[])
         {
           //here we read trigger coin and add
           //TODO turn off analysis until unpacking works
-          //Det.analyze(physicsEvent, runno);
+          Det.analyze(physicsEvent, runno);
         }
-
-        //TODO no S800 gate with secondary
-        Det.analyze(physicsEvent, runno);
 
       } //end loop over items in a evtfile
       evtfile.close();
@@ -589,7 +596,7 @@ int main(int argc, char* argv[])
   
     } //end loop over file subsections
     //Forest->writeTree();
-  
+    runcount++;
   } //end loop of run file numbers
   
   cout << '\n'<<"physics Events = " << physicsEvent << endl;

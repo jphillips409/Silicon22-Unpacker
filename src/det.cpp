@@ -34,7 +34,6 @@ det::det(histo_sort * Histo0, histo_read * Histo1, int setting)
   Histo_read = Histo1;
   Histo_sort = Histo0;
   ran = new TRandom;
-  //Hira = new hira(ran,Histo_sort);
   Gobbi = new gobbi(ran,Histo_sort); //TODO do I need the ran?
   //last value is the s800 setting, 0=Ca36, 1=K35
   Janus = new janus(Histo_sort, 40); //TODO need to give the fibers the correct distance
@@ -100,10 +99,9 @@ det::~det()
   //delete Hira;
   delete Gobbi;
   delete Janus;
-  delete ran;
+  //delete ran;
   delete s800;
   delete Ceasar;
-
   cout << "You made it!" << endl;
 }
 
@@ -138,7 +136,7 @@ bool det::unpack(ifstream *point,int runno,int sourceID, int fragmentsize)
     pointbuf = buffer_arr;
   }
   //TODO don't know if words does anything
-  unsigned short  words;// *point++;
+  unsigned short  words;
   // S Gillespie 2020/11/2
   // Defining a new value to store tdc position to pass to CEASAR
   //TODO tdcpoint may be needed? Unclear
@@ -176,7 +174,7 @@ bool det::unpack(ifstream *point,int runno,int sourceID, int fragmentsize)
   else if (sourceID == S800ID)
   {
     //To skip the S800, comment out the unpacker. Same as Gobbi
-    //stat = s800->unpack(pointbuf,runno);
+    stat = s800->unpack(pointbuf,runno);
     //if(stat)
       //NS800++;
   }
@@ -195,8 +193,7 @@ void det::analyze(int event, int run)
   Correl.reset();
   bool foundresidue = false;
 
-  //Match events has to happen outside of Janus because boards 0 and 1 are different fragments
-  //TODO we should match events at the beginning of det.analyze and clear at the end
+  //Events are already matched within boards. Call analyze() instead of MatchEvents()
   Janus->analyze();
 
   //TODO make sure to save janus info where we need it before clearing, clear() should really happen at the end
@@ -212,8 +209,6 @@ void det::analyze(int event, int run)
   // S800_results.trig_coin=false;
   // S800_results.trig_singles=false;
   // S800_results.trig_s800_singles=false;
-
-
   
   if (s800->Trig.registr & 1) S800_results.trig_s800_singles =true;
   if (s800->Trig.registr & 2) S800_results.trig_coin = true;
@@ -1203,7 +1198,9 @@ void det::analyze(int event, int run)
   if(foundresidue)
   {
     //TODO make correlation functions and call here
-
+    corr_21Al();
+    corr_22Si();
+    corr_23P();
   }
 }
 
@@ -1233,13 +1230,12 @@ bool det::LoadS800toSolution()
   float phif = 0;
 
   //TODO need Janus working for this
-  //cout << Hira->XY_mon->theta << endl;
-  /*if(Hira->XY_mon->theta !=-999)
+  if(Janus->Fiber->theta !=-999)
   {
-    thetaf =  Hira->XY_mon->theta;
-    Hira->RingCounter->Solution[Nsol].theta = thetaf;
-    phif = Hira->XY_mon->phi;
-    Hira->RingCounter->Solution[Nsol].phi = phif;
+    thetaf =  Janus->Fiber->theta;
+    Gobbi->S800->Solution[Nsol].theta = thetaf;
+    phif = Janus->Fiber->phi;
+    Gobbi->S800->Solution[Nsol].phi = phif;
   }
   else
   {
@@ -1249,14 +1245,14 @@ bool det::LoadS800toSolution()
     //phif = s800->track->phi;
     //Hira->RingCounter->Solution[Nsol].theta = thetaf;
     //Hira->RingCounter->Solution[Nsol].phi = phif;
-  }*/
+  }
 
 
   //thetaf = s800->track->theta;
   //phif = s800->track->phi;
   //TODO TEMP uses S800 angle instead of fiber
-  Gobbi->S800->Solution[Nsol].theta = thetaf;
-  Gobbi->S800->Solution[Nsol].phi = phif;
+  //Gobbi->S800->Solution[Nsol].theta = thetaf;
+  //Gobbi->S800->Solution[Nsol].phi = phif;
   
   double mass = Gobbi->S800->Pid->getMass(Z,A);
 
@@ -1335,5 +1331,119 @@ bool det::LoadS800toSolution()
 /////////////////////////////////////////////////
 //Correlation functions
 /////////////////////////////////////////////////
+void det::corr_1H()
+{
+  if(Correl.proton.mult > 0)
+  {
+    for (int i=0;i<Correl.proton.mult;i++)
+    {
+      Histo_sort->protonKE->Fill(Correl.proton.Sol[i]->Ekin);
+    }
+  }
+}
+
+void det::corr_21Al()
+{
+  //21Al -> 20Mg + p
+  if(Correl.Mg20.mult == 1 && Correl.proton.mult == 1)
+  {
+    float const Q21Al = mass_21Al - (mass_20Mg + mass_p);
+    Correl.zeroMask();
+    Correl.proton.mask[0]=1;
+    Correl.Mg20.mask[0]=1;
+    Correl.makeArray(1);
+
+    float Erel_21Al = Correl.findErel();
+    float thetaCM = Correl.thetaCM;
+    float Ex = Erel_21Al - Q21Al;
 
 
+    Histo_sort->Erel_21Al_p20Mg->Fill(Erel_21Al);
+    Histo_sort->Ex_21Al_p20Mg->Fill(Ex);
+
+    Histo_sort->ThetaCM_21Al_p20Mg->Fill(thetaCM*180./acos(-1));
+    Histo_sort->VCM_21Al_p20Mg->Fill(Correl.velocityCM);
+    Histo_sort->Erel_p20Mg_costhetaH->Fill(Erel_21Al,Correl.cos_thetaH);
+    Histo_sort->p20Mg_VCMvsErel->Fill(Correl.velocityCM,Erel_21Al);
+  }
+}
+
+void det::corr_22Si()
+{
+  //22Si -> 20Mg + 2p
+  if(Correl.Mg20.mult == 1 && Correl.proton.mult == 2)
+  {
+    //TODO Si22 and P23 masses are not known
+    //     Use calculations?
+    //float const Q22Si = mass_22Si - (mass_20Mg + 2.*mass_p);
+    Correl.zeroMask();
+    Correl.proton.mask[0]=1;
+    Correl.proton.mask[1]=1;
+    Correl.Mg20.mask[0]=1;
+    Correl.makeArray(1);
+
+    float Erel_22Si = Correl.findErel();
+    float thetaCM = Correl.thetaCM;
+    //float Ex = Erel_22Si - Q22Si;
+
+
+    Histo_sort->Erel_22Si_2p20Mg->Fill(Erel_22Si);
+    //Histo_sort->Ex_22Si_2p20Mg->Fill(Ex);
+
+    Histo_sort->ThetaCM_22Si_2p20Mg->Fill(thetaCM*180./acos(-1));
+    Histo_sort->VCM_22Si_2p20Mg->Fill(Correl.velocityCM);
+    Histo_sort->Erel_2p20Mg_costhetaH->Fill(Erel_22Si,Correl.cos_thetaH);
+    Histo_sort->pp20Mg_VCMvsErel->Fill(Correl.velocityCM,Erel_22Si);
+  }
+}
+
+void det::corr_23P()
+{
+  //23P -> 20Mg + 3p
+  if(Correl.Mg20.mult == 1 && Correl.proton.mult == 3)
+  {
+    //float const Q23P = mass_23P - (mass_20Mg + 3.*mass_p);
+    Correl.zeroMask();
+    Correl.proton.mask[0]=1;
+    Correl.proton.mask[1]=1;
+    Correl.proton.mask[2]=1;
+    Correl.Mg20.mask[0]=1;
+    Correl.makeArray(1);
+
+    float Erel_23P = Correl.findErel();
+    float thetaCM = Correl.thetaCM;
+    //float Ex = Erel_22Si - Q22Si;
+
+
+    Histo_sort->Erel_23P_3p20Mg->Fill(Erel_23P);
+    //Histo_sort->Ex_23P_3p20Mg->Fill(Ex);
+
+    Histo_sort->ThetaCM_23P_3p20Mg->Fill(thetaCM*180./acos(-1));
+    Histo_sort->VCM_23P_3p20Mg->Fill(Correl.velocityCM);
+    Histo_sort->Erel_3p20Mg_costhetaH->Fill(Erel_23P,Correl.cos_thetaH);
+    Histo_sort->ppp20Mg_VCMvsErel->Fill(Correl.velocityCM,Erel_23P);
+  }
+
+  //23P -> 22Si + p
+  if(Correl.Si22.mult == 1 && Correl.proton.mult == 1)
+  {
+    //float const Q23P = mass_23P - (mass_22Si + mass_p);
+    Correl.zeroMask();
+    Correl.proton.mask[0]=1;
+    Correl.Si22.mask[0]=1;
+    Correl.makeArray(1);
+
+    float Erel_23P = Correl.findErel();
+    float thetaCM = Correl.thetaCM;
+    //float Ex = Erel_22Si - Q22Si;
+
+
+    Histo_sort->Erel_23P_p22Si->Fill(Erel_23P);
+    //Histo_sort->Ex_23P_p22Si->Fill(Ex);
+
+    Histo_sort->ThetaCM_23P_p22Si->Fill(thetaCM*180./acos(-1));
+    Histo_sort->VCM_23P_p22Si->Fill(Correl.velocityCM);
+    Histo_sort->Erel_p22Si_costhetaH->Fill(Erel_23P,Correl.cos_thetaH);
+    Histo_sort->p22Si_VCMvsErel->Fill(Correl.velocityCM,Erel_23P);
+  }
+}
