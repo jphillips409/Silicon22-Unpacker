@@ -50,6 +50,7 @@ class det
 
   CLosses *losses_fiber;
   CLosses *losses_target;
+  CLosses *losses_fiberAl;
   
   //forest * Forest;
   

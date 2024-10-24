@@ -41,8 +41,9 @@ det::det(histo_sort * Histo0, histo_read * Histo1, int setting)
   Ceasar = new ceasar(ran,Histo_sort,Histo_read, 13);
   Doppler = new doppler(0.3323); //beta for Ca-36
 
-  losses_fiber = new CLosses(20,"_fiber.loss",true);
-  losses_target = new CLosses(20,"_Be.loss",true);
+  losses_fiber = new CLosses(16,"_fiber.loss",true);
+  losses_target = new CLosses(16,"_Be.loss",true);
+  losses_fiberAl = new CLosses(16,"_Al.loss",true); // Losses in aluminum foil between fiber layers
 
   Nresidue = 0;
   Nbadresidue = 0;
@@ -159,7 +160,7 @@ bool det::unpack(ifstream *point,int runno,int sourceID, int fragmentsize)
       return stat;
     }
     //To skip CAESAR, comment out the unpacker. Same as Gobbi
-    //TODO CAESAR may have its own source ID for the Si-22 experiment
+    //CAESAR should not have its own source ID
     //stat = Ceasar->unpack(pointbuf, tdcpoint, runno); // SG 2020/11/02
   }
   else if (sourceID == JanusID)

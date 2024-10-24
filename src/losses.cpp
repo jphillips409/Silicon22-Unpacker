@@ -48,12 +48,13 @@ CLosses::CLosses(int Zmax0,string suffix,bool S800)
   for (int iZ = 1;iZ <= Zmax;iZ++)
   {
     // z=15 through z=22 available
-    if (iZ >=1 && iZ <= 15)  filename = path + "Phosphorus" + suffix;
-    else if (iZ == 16)  filename = path + "Sulfur" + suffix;
-    else if (iZ == 17)  filename = path + "Chlorine" + suffix;
-    else if (iZ == 18)  filename = path + "Argon" + suffix;
-    else if (iZ == 19)  filename = path + "Potassium35" + suffix;
-    else if(iZ == 20) filename = path + "Calcium36" + suffix;
+    if (iZ >=1 && iZ <= 10)  filename = path + "Neon" + suffix;
+    else if (iZ == 11)  filename = path + "Sodium" + suffix;
+    else if (iZ == 12)  filename = path + "Magnesium" + suffix;
+    else if (iZ == 13)  filename = path + "Aluminum" + suffix;
+    else if (iZ == 14)  filename = path + "Silicon" + suffix;
+    else if(iZ == 15) filename = path + "Phosphorus" + suffix;
+    else if(iZ == 16) filename = path + "Sulfur" + suffix;
     else
     {
       cout << suffix << " loss file for Z = " << iZ << " not found "<< endl;
