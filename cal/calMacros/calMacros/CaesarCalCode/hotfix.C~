@@ -1,0 +1,83 @@
+//created by Nicolas Dronchi out of lazyness to fix a few
+//Caesar detectors with slightly off calibrations.
+
+#include <iostream>
+#include <vector>
+
+void hotfix()
+{
+  std::vector<int> Ndet = {12, 33, 37, 55, 76, 89, 97, 99, 102, 122, 129, 130, 137, 140, 143, 145, 154, 160};
+
+  std::vector<float> ambefix ={2222.0, 2346.67, 2623.04, 2426.95, 2536.64, 3598.75, 2640.93, 2572.04, 2467.96, 2272.47, 2530.82, 2549.67, 2228.24, 2341.7, 2507.0, 2230.93, 2554.54, 2344.15};
+
+  ofstream fits;
+  fits.open("hotfixfits.txt");
+
+  TFile *input = new TFile("quad_cal.root", "read");
+  TFile *output = new TFile("hotfixfits.root", "RECREATE");
+  int size = 18;
+  TGraphErrors *gr1[18];
+
+  TList *list = new TList;
+
+
+  TF1 *lincoeffFit;
+  lincoeffFit = new TF1("lincoeffFit", "[0] + [1]*x");
+
+  ostringstream outstring;
+  string name;
+
+  for(int i=0; i<Ndet.size();i++)
+  {
+    outstring.str("");
+    outstring << "Equation Fit Linear - "  << Ndet.at(i);
+    name = outstring.str();
+    cout << name << endl;
+    gr1[i] = (TGraphErrors*)input->Get(name.c_str());
+
+/*
+    TF1 *lincoeffFit;
+    lincoeffFit = new TF1("lincoeffFit", "[0] + [1]*x");
+    lincoeffFit->SetParameters(0,1.5);
+    lincoeffFit->SetParLimits(0,-500,500);
+    lincoeffFit->SetParLimits(1,0.5,4);
+    gr1->Fit(lincoeffFit, "Q");
+    double gains = lincoeffFit->GetParameter(1)/1000.0;
+    double offsets = lincoeffFit->GetParameter(0)/1000.0;
+    cout << "gains/offsets  " << gains << " " << offsets << endl;
+*/    
+
+    double x[8];
+    double y[8];
+
+    int N = gr1[i]->GetN();
+    if (N>8) abort();
+
+    //extract the data points from the previous calibration
+    for(int j=0; j<N; j++)
+    {
+      //x=ch, y=energy
+      gr1[i]->GetPoint(j,x[j],y[j]);
+      cout << j << "  " << x[j] << " " << y[j] << endl;
+      //fix the AmBe calibration point, always the last point
+      if (j == N-1) x[j] = ambefix.at(j);
+      //fix a single Co-60 calibration that is off
+      if (i == 1 && j == 1) x[j] = 793.7;
+    }
+    
+    TGraph *gr2 = new TGraph(N, x, y);
+ 
+    gr2->Fit(lincoeffFit, "Q");
+    double gains = lincoeffFit->GetParameter(1)/1000.0;
+    double offsets = lincoeffFit->GetParameter(0)/1000.0;
+    cout << "gains/offsets  " << gains << " " << offsets << endl;
+    fits << 0 << "\t" << Ndet.at(i) << "\t" << gains << "\t" << offsets << endl;
+
+    list->Add(gr2);
+  }
+
+  output->cd();
+  list->Write();
+  output->Close();
+	fits.close();
+}

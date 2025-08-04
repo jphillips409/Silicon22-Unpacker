@@ -1,0 +1,18 @@
+void CsI_ch_to_E()
+{
+
+  float CsIChannels[16][3] = {{0.}};
+  // Be, Thin Al, Thick Al (with 5mm Al blocker and 1.5mm Si)
+  float CsIEnergies[3] = {103.591,85.556,60.952}; //MeV
+
+  ifstream inCsIBe("CsI_p_Be.dat");
+  if(!inCsIBe.is_open())
+    {
+      cout << "could not open Be csi channel text file" << endl;
+      return;
+    }
+  
+
+
+  return;
+}
