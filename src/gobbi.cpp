@@ -16,17 +16,20 @@
 //    '--' '--'' '--'
 
 
-//TODO Remove all dE and W stuff
-//     Remove print statements added for late Ne16 analysis
+//TODO
 //     Only want matching for F, B, and CsI
 //     All Eloss needs to be for new setup, have aluminum absorbers now
 
-//     Need to decide: do I want to make a 5th "telescope" for the S800?
-//     pros: mostly easy to handle and calculate eloss, pid, and nsolution
-//     cons: confusing, a pain when looping through num telescopes, lot of unneeded stuff.
-
 //TODO write an unpacker inside of Gobbi that calls HINP for Si and ADC and TDC for CsI
 //The unpacker should accept a source ID which will tell it if it goes to HINP, ADC, or TDC
+
+//VME crate order
+//	Timestamper (SIS)
+//	XLM (HINP boards)
+//	CAEN ADC (CsI)
+//	CAEN QDC (CsI)
+//	CAEN TDC (CsI)
+//	CAESAR (Called separately in det.cpp)
 
 
 using namespace std;
@@ -37,15 +40,19 @@ gobbi::gobbi(TRandom* ran, histo_sort * Histo1)
                         //Ntele, Nstrip, filename, polynomial order, weave strips?
 
                        //Ntele0, Nstrip0,      name,                 order0, weave,  bback
-  FrontEcal = new calibrate(4, Histo->Nstrip, "cal/GobbiFrontEcal.dat", 1, false);
-  BackEcal = new calibrate(4, Histo->Nstrip, "cal/GobbiBackEcal.dat", 1, false);
-  CsIEcal = new calibrate(4, 4, "cal/GobbiCsIProtoncal.dat", 1, false);
+  FrontEcal = new calibrate(4, Histo->Nstrip, "cal2/GobbiFrontEcal.dat", 1, false);
+  BackEcal = new calibrate(4, Histo->Nstrip, "cal2/GobbiBackEcal.dat", 1, false);
+  //CsIEcal = new calibrate(4, 4, "cal/calMacros/CsI_cal_out_0deg.dat", 1, false); //0 degree energies
+  CsIEcal = new calibrate(4, 4, "cal/calMacros/CsI_cal_out.dat", 1, false); //Center of CsI angle
+  //Only for gains of 90, only applies to specific CsI-0 runs
+  CsIEcal90 = new calibrate(4, 4, "cal/calMacros/CsI_cal_90.dat", 1, false); //Center of CsI angle
+  //CsIEcal = new calibrate(4, 4, "cal/CsI_roughcal.dat", 1, false); //Rough calibration using the pedestal and the highest energy proton point
   FrontTimecal = new calibrate(4, Histo->Nstrip, "cal/GobbiFrontTimecal.dat",1, false);
   BackTimecal = new calibrate(4, Histo->Nstrip, "cal/GobbiBackTimecal.dat",1, false);  
   CsITimecal = new calibrate(4, 4, "cal/GobbiCsITimecal.dat", 1, false);
 
-  FrontLowEcal = new calibrate(4, Histo->Nstrip, "cal/GobbiFrontLowEcal.dat", 1, false);
-  BackLowEcal = new calibrate(4, Histo->Nstrip, "cal/GobbiBackLowEcal.dat", 1, false);
+  FrontLowEcal = new calibrate(4, Histo->Nstrip, "cal2/GobbiFrontLowLowEcal.dat", 1, false);
+  BackLowEcal = new calibrate(4, Histo->Nstrip, "cal2/GobbiBackLowEcal.dat", 1, false);
 
   for (int id=0;id<4;id++)
   {
@@ -69,7 +76,8 @@ gobbi::gobbi(TRandom* ran, histo_sort * Histo1)
   
   SiADC = new HINP();
   CsIADC = new caen();
-  CsITDC = new TDC1190(3,0,128);
+  CsITDC = new mtdc();
+  CsIQDC = new caen();
 
   //time gates for s800 coincidence
   int one,two,three;
@@ -97,6 +105,7 @@ gobbi::~gobbi()
   delete S800; //not needed as it is in automatic memory, didn't call with new
   delete CsITDC;
   delete CsIADC;
+  delete CsIQDC;
   delete SiADC; //added in these deletes, not sure they should be here?
 }
 
@@ -124,37 +133,54 @@ void gobbi::reset()
 // ****** Right now we have to comment out HINP and TDC, don't want to do that ******
 
 //TODO do I actually need tdcpoint? Remove if possible
-bool gobbi::unpack(unsigned short*& point,unsigned short*& tdcpoint,int runno)
+bool gobbi::unpack(unsigned short *&point,unsigned short *&tdcpoint,int runno)
 {
+
+  //TODO fabricating qdc data, hardcode zeros at start for qdc flag, seems to work
+  for (int i=0;i<32;i++) DataE[i].qdcmatch = 0;
+
+  NE = 0;
+  NT = 0;
+  NQ = 0; //hardcode these as 0, makes it much safer
+
   bool stat = true;
-  //stat = unpackSi_HINP4(point);
-  //if (!stat)
-  //{
-    //cout << "Bad Si-HINP" << endl;
-    //return stat;
-  //}
+  stat = unpackSi_HINP4(point);
+  if (!stat)
+  {
+    cout << "Bad Si-HINP" << endl;
+    return stat;
+  }
 
   //TODO is a shift needed here?
   //point += 3;
-
+  //cout << "NEW RUN" << endl;
   stat = unpackCsI_ADC(point);
-
+ 
   if (!stat)
   {
     //cout << "Bad CsI ADC" << endl;
     return stat;
   }
+	stat = unpackCsI_QDC(point); //QDC basically uses the same unpacker as ADC
 
-  //stat = unpackCsI_TDC(point);
+	if (!stat)
+	{
+		cout << "Bad CsI QDC" << endl;
+		return stat;
+	}
 
-  //if (!stat)
-  //{
-    //cout << "Bad CsI TDC" << endl;
-    //return stat;
-  //}
+  stat = unpackCsI_TDC(point);
 
+  if (!stat)
+  {
+    cout << "Bad CsI TDC" << endl;
+    return stat;
+  }
+
+	//Calculate CsI PSD parameter first, then match with time
+	CsIQDCMatch();
   //Match up CsI energies and times now
-  MatchCsIEnergyTime();
+  MatchCsIEnergyTime(runno); //give run number for calibration
 
   return stat;
 }
@@ -168,7 +194,7 @@ bool gobbi::unpackSi_HINP4(unsigned short*& point)
   {
     cout << "Bad Si-HINP" << endl;
     //cntBadHinp++;
-    return stat;
+    return false;
   }
 
   //TODO After unpacking, add front and back events
@@ -199,19 +225,24 @@ bool gobbi::unpackSi_HINP4(unsigned short*& point)
 //TODO unpacks the CsI ADC channels, 16 used
 bool gobbi::unpackCsI_ADC(unsigned short*& point)
 {
+  NE = 0; //index for the current energy position
+
   bool stat = true;
   //look to see if there is any CAEN ADC data at all
   unsigned short header1 = *point;
   unsigned short header2 = *(point+1);  
+	//cout << hex << header1 << " " << header2 << dec << endl;
   if (header1 == 0xffff)
   {
     //cout << " no data " << endl;
     CsIADC->number = 0;   //  no data at all
     //cntNoAdc++;
+    *point+=2;
+    return false;
   }
   else  // read data
   {
-    stat = CsIADC->read(point); //unpack data from caen ADC
+    point = CsIADC->read(point); //unpack data from caen ADC
     if (!stat)
     {
       cout << "Bad CsIE " << CsIADC->number << " " << counter << endl;
@@ -221,13 +252,14 @@ bool gobbi::unpackCsI_ADC(unsigned short*& point)
   }
 
   //TODO add CsI events
-  if (Verb) {cout << "CsIADC->number " << CsIADC->number << "TDC->Ndata " << CsITDC->Ndata << endl;}
+  if (Verb) {cout << "CsIADC->number " << CsIADC->number << "TDC->Ndata " << CsITDC->number << endl;}
 
-  NE = 0; //index for the current energy position
+
+  //cout << " ADC Num " << CsIADC->number << endl;
   for (int i=0; i<CsIADC->number; i++)
   {
-    if (CsIADC->underflow[i]) continue;
-    if (CsIADC->overflow[i]) continue;
+    if (CsIADC->underflow[i]) cout << "underflow!" << endl;//continue;
+    if (CsIADC->overflow[i]) cout << "overflow!" << endl;// continue;
     
     if(CsIADC->channel[i] < 16) //CsI used chan 16-31 in the ADC
     {
@@ -237,7 +269,18 @@ bool gobbi::unpackCsI_ADC(unsigned short*& point)
       DataE[NE].ienergy = CsIADC->data[i];
       NE++;
     }
+
   }
+
+  unsigned short f1 = *point++;
+  unsigned short f2 = *point++;  
+	//cout << "ADC end " << hex << header1 << " " << header2 << " ";
+  if (f1 != 0xffff && f2 != 0xffff)
+  {
+		cout << "ADC not read correctly" << endl;
+		return false;
+  }
+  //cout << " end adc " << *point << " " << *(point+1) << endl;
 
   return stat;
 }
@@ -245,16 +288,20 @@ bool gobbi::unpackCsI_ADC(unsigned short*& point)
 //TODO unpacks the CsI TDC channels, 16 used
 bool gobbi::unpackCsI_TDC(unsigned short*& point)
 {
+  NT = 0; //index for the current time position
+
   bool stat = true;
-  CsITDC->Ndata = 0;  //temporarily
+  CsITDC->number = 0;  //temporarily
   //TODO it is unclear, I think the TDC point is at the end after the CsI ADC????
 
   //look for FFFF's
-  unsigned short header1 = *point++;
-  unsigned short header2 = *point++;
-  if (header1  != 0xffff || header2 != 0xffff)
+  unsigned short header1 = *point;
+  unsigned short header2 = *(point + 1);
+  //cout << "TDC header " << header1 << " " << header2 << endl;
+  if (header1  == 0xffff || header2 == 0xffff)
   {
-    cout << "missing FFFF " << endl;
+    //cout << "missing FFFF " << endl;
+    //return false;
     //cntNoTDCblock++;
   }
   else if (Verb) cout << "good we found the FFFF blocks" << endl;
@@ -265,7 +312,7 @@ bool gobbi::unpackCsI_TDC(unsigned short*& point)
   unsigned short f2 = *checkpoint1++;
   if (f1 != 0xffff && f2 != 0xffff)
   {
-    point = CsITDC->read(point); //unpack all the HINP chips
+    point = CsITDC->read(point); //unpack the mesytec TDC
 
     unsigned short *checkpoint2 = point;
     f1 = *checkpoint2++;
@@ -281,28 +328,118 @@ bool gobbi::unpackCsI_TDC(unsigned short*& point)
   else
   {
     //cout << "no CsI TDC data" << endl;
-    point += 2;
+    //point += 2; +=2 might not work?
+    point++;
+    point++;
     //cntNoTDCdata++;
     return false;
   }
 
   //TODO add TDC events
-  NT = 0; //index for the current time position
 
-  for (int i=0; i<CsITDC->Ndata; i++) //TODO check this loop
+  for (int i=0; i<CsITDC->number; i++) //TODO check this loop
   {
-    if (Verb) {cout << "TDC in det.cpp " << CsITDC->dataOut[i].channel << " " << CsITDC->dataOut[i].time << endl;}
-    if (CsITDC->dataOut[i].channel >15) //CsI used chan 16-31 in the TDC
-    {
+    //if(Mtdc[itdc].channel[j] == 34) continue; //Extended timestamp
+    if(CsITDC->channel[i] == 32 || CsITDC->channel[i] == 33) { //Trigger Channel
+	  CsITDC->trigger = true;
+	  continue; }
+    if (Verb) {cout << "TDC in det.cpp " << CsITDC->channel[i] << " " << CsITDC->data[i] << endl;}
+      //if (CsITDC->channel[i] < 16 && CsITDC->channel[i] > 3) continue;
+      if (CsITDC->channel[i] < 16 && CsITDC->channel[i] != 1 && CsITDC->channel[i] != 2 && CsITDC->channel[i] != 3) continue;
+      int id = CsITDC->channel[i];
+      int itime =CsITDC->data[i];
+      //if (id == 16) cout << "chan 0 time " << endl;
+      if (CsITDC->channel[i] > 15) id = id - 16; //CsI
+      if (CsITDC->channel[i] == 1) id = 16; //S800 DBS
+      if (CsITDC->channel[i] == 2) id = 17; //S800 Object
+      if (CsITDC->channel[i] == 3) id = 18; //S800 RF
+      DataT[NT].id  = id;
+      DataT[NT].itime = itime;
+      DataT[NT].time = itime * CsITDC->res / 1000.0; // Convert to ns
+      DataT[NT].ichan = CsITDC->channel[i];
       //want to shift it to 0-15 for it's use in code
-      int idtemp = CsITDC->dataOut[i].channel -16;
-      //reroute miswired CsI cables, hopefully not needed
-      DataT[NT].id = idtemp;
-      DataT[NT].itime = CsITDC->dataOut[i].time/10; //divide by 10 to get nano seconds
       NT++;
-    }
   }
   if (Verb) {cout << "NE " << NE << " NT " << NT << endl;}
+
+  f1 = *point++;
+  f2 = *point++;  
+	//cout << header1 << " " << header2 << " ";
+  if (f1 != 0xffff && f2 != 0xffff)
+  {
+		cout << "ADC not read correctly" << endl;
+		return false;
+  }
+
+  return stat;
+}
+
+//TODO unpacks the CsI QDC channels, 16 used. Same unpacker as ADC
+bool gobbi::unpackCsI_QDC(unsigned short*& point)
+{
+  bool stat = true;
+
+  //Reset QDC
+  for (int i=0;i<32;i++) DataQ[i].ienergy = 0;
+
+  NQ = 0; //index for the current energy position
+  //look to see if there is any CAEN QDC data at all
+  unsigned short header1 = *point;
+  unsigned short header2 = *(point+1);  
+
+	//cout << "QDC Startheader " << hex << " " << header1 << dec << endl;
+  if (header1 == 0xffff)
+  {
+    //cout << " QDC no data " << header1 << " " << header2 << endl;
+    CsIQDC->number = 0;   //  no data at all
+    //cout << "p1 " << *point << "p2 " << *(point+1) << "p3 " << *(point+2) << endl;
+    *point++;
+    *point++;
+    //cout << "p2 " << *point << endl;
+    //cntNoAdc++;
+    return true;
+  }
+  else  // read data
+  {
+    point = CsIQDC->read(point); //unpack data from caen ADC
+    if (!stat)
+    {
+      cout << "Bad CsI QDC " << CsIQDC->number << " " << counter << endl;
+      //cntBadAdc++;
+      return false;
+    }
+  }
+
+  //TODO add CsI events
+  if (Verb) {cout << "CsIQDC->number " << CsIQDC->number << endl;}
+
+  //cout << endl << CsIQDC->number << endl;
+  for (int i=0; i<CsIQDC->number; i++)
+  {
+    if (CsIQDC->underflow[i]) continue;
+    if (CsIQDC->overflow[i]) continue;
+    
+    if(CsIQDC->channel[i] < 17) //CsI used chan 0-15 in the QDC chan 17 for S800 testing
+    {
+      //want to shift it to 0-15 for it's use in code
+      int idtemp = CsIQDC->channel[i];
+      DataQ[NQ].id = idtemp;
+      DataQ[NQ].ienergy = CsIQDC->data[i];
+      NQ++;
+
+    }
+
+  }
+
+
+  unsigned short f1 = *point++;
+  unsigned short f2 = *point++;  
+	//cout << "QDC end " <<  header1 << " " << header2 << " ";
+  if (f1 != 0xffff && f2 != 0xffff)
+  {
+		cout << "QDC not read correctly" << endl;
+		return false;
+  }
 
   return stat;
 }
@@ -326,7 +463,7 @@ void gobbi::addFrontEvent(int quad, unsigned short chan, unsigned short high,
   Histo->sumFrontE_cal->Fill(quad*Histo->Nstrip + chan, Energy);
   Histo->sumFrontlowE_cal->Fill(quad*Histo->Nstrip + chan, EnergyLow);
   Histo->sumFrontTime_cal->Fill(quad*Histo->Nstrip + chan, time);
-
+  //if (quad == 0 && chan == 0 && high > 1270 && high < 1340) abort();
   Histo->FrontE_R[quad][chan]->Fill(high);
   Histo->FrontElow_R[quad][chan]->Fill(low);
 
@@ -337,8 +474,8 @@ void gobbi::addFrontEvent(int quad, unsigned short chan, unsigned short high,
   //TODO this is a good spot to throw an if statement and make software thresholds
   if (Energy > 0.5)
   {
-    Telescope[quad]->Front.Add(chan, Energy, EnergyLow, low, high, time);
-    Telescope[quad]->tempFront.Add(chan, Energy, EnergyLow, low, high, time); //TODO what's this for? Added later in Ne16?
+    Telescope[quad]->Front.Add(chan, Energy, EnergyLow, low, high, time, -1,0); //No psd, set to -1
+    Telescope[quad]->tempFront.Add(chan, Energy, EnergyLow, low, high, time, -1,0); //TODO what's this for? Added later in Ne16?
     Telescope[quad]->multFront++;
   }
 }
@@ -373,14 +510,14 @@ void gobbi::addBackEvent(int quad, unsigned short chan, unsigned short high,
   //TODO this is a good spot to throw an if statement and make software thresholds
   if (Energy > 0.5)
   {
-    Telescope[quad]->Back.Add(chan, Energy, EnergyLow, low, high, time);
-    Telescope[quad]->tempBack.Add(chan, Energy, EnergyLow, low, high, time); //TODO what's this for? Added later in Ne16?
+    Telescope[quad]->Back.Add(chan, Energy, EnergyLow, low, high, time, -1,0);
+    Telescope[quad]->tempBack.Add(chan, Energy, EnergyLow, low, high, time, -1,0); //TODO what's this for? Added later in Ne16?
     Telescope[quad]->multBack++;
   }
 }
 
 
-void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn stuff off if no TDC
+void gobbi::MatchCsIEnergyTime(int runno) //TODO verify that this code works, must turn stuff off if no TDC
 {
   int Nfound = 0;
   int Nnotfound = 0;
@@ -388,29 +525,124 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
   //plot unmatched energy and times
   for (int ie=0;ie<NE;ie++)
   {
+    double Ecal = CsIEcal->getEnergy(floor(DataE[ie].id/4), DataE[ie].id - (4*floor(DataE[ie].id/4)), DataE[ie].ienergy);
+
     Histo->CsI_Energy_R_um[DataE[ie].id]->Fill(DataE[ie].ienergy);
+    Histo->CsI_Energy_cal[DataE[ie].id]->Fill(Ecal);
     Histo->sumCsIE_R->Fill(DataE[ie].id, DataE[ie].ienergy);
-    Histo->sumCsIE_cal->Fill(DataE[ie].id, DataE[ie].energy);
+    Histo->sumCsIE_cal->Fill(DataE[ie].id, Ecal);
+    if (DataE[ie].qdcmatch == 1) Histo->CsI_QDC_matched[DataE[ie].id]->Fill(DataE[ie].qdc);
   }
   for (int it=0;it<NT;it++)
   {
-    Histo->CsI_Time_R_um[DataT[it].id]->Fill(DataT[it].itime);
+    //cout << DataT[it].id << endl;
+    Histo->CsI_Time_R_um[DataT[it].id]->Fill(DataT[it].time);
     Histo->sumCsITime_R->Fill(DataT[it].id, DataT[it].itime);
+    Histo->sumCsITime_cal->Fill(DataT[it].id, DataT[it].time);
+
+    //Fill calibrated time for chans 16-8
+    if (DataT[it].id >= 16 && DataT[it].id <= 18) Histo->CsI_Time_cal[DataT[it].id]->Fill(DataT[it].time);
+    //cout << DataT[it].id << " ";
   }
+  //cout << endl;
+
+  //for (int iE=0;iE<NE;iE++) cout << DataE[iE].id << " ";
+  //cout << endl;
+  
+  //TODO Temporarily don't match times for alpha calibrations. No TDC data yet. Change once we have TDC data
+  /*for (int ie=0;ie<NE;ie++)
+  {
+  	int id = DataE[ie].id;
+ 	if (id <4)
+        {
+          //ignores events with CsI output lower than pedestal, only keep for quench fit
+          //if (id == 0 && DataE[ie].ienergy < CsIEcal->Coeff[0][0].qp) continue;
+          int quad = 0;
+          int chan = DataE[ie].id;
+          //CsI energy calibration here!
+          double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
+          //Ecal = Ecal*1.5; // temporarily increase energy to try and straighten theta_H vs erel, modify the pedestal and high energy edge rough cal
+          DataE[ie].energy = Ecal;
+          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+
+          Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
+          Telescope[quad]->multCsI++;
+         //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
+        }
+        else if(id < 8 and id >= 4)
+        {
+          //ignores events with CsI output lower than pedestal
+          //if (id == 4 && DataE[ie].ienergy < CsIEcal->Coeff[1][0].qp) continue;
+          int quad = 1;
+          int chan = DataE[ie].id - 4; //shift id so it is 0,1,2,3
+          double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
+          //Ecal = Ecal*1.5; // temporarily increase energy to try and straighten theta_H vs erel
+          DataE[ie].energy = Ecal;
+          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+
+          Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
+          Telescope[quad]->multCsI++;
+           //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
+        }
+        else if(id < 12 and id >= 8)
+        {
+          //ignores events with CsI output lower than pedestal
+          //if (id == 8 && DataE[ie].ienergy < CsIEcal->Coeff[2][0].qp) continue;
+          int quad = 2;
+          int chan = DataE[ie].id - 8; //shift id so it is 0,1,2,3
+          double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
+          //Ecal = Ecal*1.6;
+          DataE[ie].energy = Ecal;
+ 
+          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+
+          Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
+          Telescope[quad]->multCsI++;
+         //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
+        }
+        else if(id < 16 and id >= 12)
+        {
+          //ignores events with CsI output lower than pedestal
+          //if (id == 12 && DataE[ie].ienergy < CsIEcal->Coeff[3][0].qp) continue;
+          int quad = 3;
+          int chan = DataE[ie].id - 12; //shift id so it is 0,1,2,3
+          double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
+          //Ecal = Ecal*1.45; // temporarily increase energy to try and straighten theta_H vs erel
+          DataE[ie].energy = Ecal;
+          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+
+          Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
+          Telescope[quad]->multCsI++;
+         //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
+        }
+        else
+        {
+          //we have an issue. what did YOU do?
+          cout << "check the id of CsI coming in, CsI.id" << id << " was found" << endl;
+        }
+  
+  }*/
 
   // match up energies to times
   for (int ie=0;ie<NE;ie++)
   {
     DataE[ie].itime = -1;
+    //DataQ[ie].itime = -1;	//This probably doesn't need time.
     bool found = false;
     for (int it=0;it<NT;it++)
     {
-      if (found != true && true) //Use this until you get good times. Always matches TDC and CsI
+      //if (found != true && true) //Use this until you get good times. Always matches TDC and CsI
       // TODO We have matched with some time gate imposed - ONLY UNCOMMENT WHEN YOU HAVE GOOD TIME GATES
-      //if (DataE[ie].id == DataT[it].id && DataT[it].itime > -599 && DataT[it].itime < 500)
+      if (DataE[ie].id == DataT[it].id) //&& DataT[it].itime > -599 && DataT[it].itime < 500)
       {
         found = true;
         DataE[ie].itime = DataT[it].itime;
+        DataE[ie].time = DataT[it].time; //Have Mesytec cal from stephen
+        //DataQ[ie].itime = DataT[it].itime;t
 
         Nfound++;
         
@@ -431,12 +663,19 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
           //CsI energy calibration here!
           double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
 
-          DataE[ie].energy = Ecal;
-          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+          //CsI-0 had problems, requiring some runs with a gain of 15 and others with a gain of 90
+          //The regular calibration is with gains of 15, a secondary one is needed JUST for CsI-0 gain 90
+          if (id == 0 && runno <= 131)
+          {
+            //ONLY CSI 0
+            Ecal = CsIEcal90->getEnergy(quad, chan, DataE[ie].ienergy);
+          }
 
+          DataE[ie].energy = Ecal;
+          //DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
 
           Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
-                                   DataE[ie].ienergy, DataE[ie].time);
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
           Telescope[quad]->multCsI++;
          //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
         }
@@ -449,10 +688,10 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
           double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
 
           DataE[ie].energy = Ecal;
-          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+          //DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
 
           Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
-                                   DataE[ie].ienergy, DataE[ie].time);
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
           Telescope[quad]->multCsI++;
            //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
         }
@@ -466,10 +705,10 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
 
           DataE[ie].energy = Ecal;
  
-          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+          //DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
 
           Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
-                                   DataE[ie].ienergy, DataE[ie].time);
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
           Telescope[quad]->multCsI++;
          //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
         }
@@ -482,10 +721,10 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
           double Ecal = CsIEcal->getEnergy(quad, chan, DataE[ie].ienergy);
 
           DataE[ie].energy = Ecal;
-          DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
+          //DataE[ie].time = CsITimecal->getTime(quad, chan, DataE[ie].itime);
 
           Telescope[quad]->CsI.Add(chan, DataE[ie].energy, 0., 0, 
-                                   DataE[ie].ienergy, DataE[ie].time);
+                                   DataE[ie].ienergy, DataE[ie].time, DataE[ie].qdc, DataE[ie].qdcmatch);
           Telescope[quad]->multCsI++;
          //cout << " gobbi:ll " << id << " tele=" << quad << " iCsI=" << chan << endl;
         }
@@ -504,6 +743,35 @@ void gobbi::MatchCsIEnergyTime() //TODO verify that this code works, must turn s
     }
 
   }
+}
+
+//Assign the qdc value using the QDC and ADC
+void gobbi::CsIQDCMatch()
+{
+  //cout << endl << "MATCHING EVENTS" << endl;
+	for (int i=0;i<NQ;i++)
+	{
+	  //cout << DataQ[i].id << " ";
+	  Histo->CsI_QDC_R[DataQ[i].id]->Fill(DataQ[i].ienergy);
+	}
+  //cout << endl;
+	//channels always read in order
+	for (int i=0;i<NE;i++)
+	{
+    DataE[NE].qdcmatch = 0;
+	  //cout << DataE[i].id << " ";
+		for (int j=0;j<NQ;j++)
+		{
+			if (DataE[i].id == DataQ[j].id)
+			{
+				DataE[i].qdc = DataQ[j].ienergy;
+        DataE[i].qdcmatch = 1;
+        break;
+			}
+		}
+		//cout << endl;
+	}
+
 }
 
 
@@ -525,9 +793,8 @@ void gobbi::SiNeighbours()
 
 //TODO need to apply S800 time gates before neighbour adding
 //Can't do neighbour adding until I have calibrations
-int gobbi::analyze(s800_results S800_results)
+int gobbi::analyze(s800_results S800_results, int runno)
 {
-  
   //********************************************************
 
   //TODO Apply S800 time gates here.
@@ -536,7 +803,7 @@ int gobbi::analyze(s800_results S800_results)
   //********************************************************
 
   //leave this part out early in the experiment, it causes a lot of trouble!!
-  //SiNeighbours(); //see if this is working
+  SiNeighbours(); //see if this is working
 
   //TODO make sure matching works for multiple F, B, CsI. No dE
   //TODO want hists for DEE, F vs B, High vs Low. Think of others to add
@@ -549,14 +816,14 @@ int gobbi::analyze(s800_results S800_results)
     //WARNING: this is only in for testing alpha calibrations. Comment this out
     //when you are taking real data
     //Don't superimpose detectors at different distances with this plot
-   /* if (Telescope[id]->Front.Nstore ==1 && Telescope[id]->Back.Nstore ==1)
+    if (Telescope[id]->Front.Nstore ==1 && Telescope[id]->Back.Nstore ==1)
     {
       int testhit = Telescope[id]->testingHitE();
       Telescope[id]->position(9);
       Histo->testinghitmap->Fill(Telescope[id]->Solution[9].Xpos, Telescope[id]->Solution[9].Ypos);
       if (id == 4) Histo->testWhit->Fill(Telescope[id]->Solution[9].ifront,Telescope[id]->Solution[9].iback);
 
-    }*/
+    }
 
     //Front vs back and high vs low for gobbi
     if (Telescope[id]->Front.Nstore ==1 && Telescope[id]->Back.Nstore ==1)
@@ -573,11 +840,28 @@ int gobbi::analyze(s800_results S800_results)
     }
     //continue;
 
+    //Track num of coincidence events with just Si, CsI, both, and later matched solutions
+    if (S800_results.trig_coin == true)
+    {
+      if (Telescope[id]->CsI.Nstore > 0 && Telescope[id]->Front.Nstore <= 0 && Telescope[id]->Back.Nstore <= 0) S800coinc_CsI = true;
+      if (Telescope[id]->CsI.Nstore <= 0 && Telescope[id]->Front.Nstore > 0 && Telescope[id]->Back.Nstore > 0) S800coinc_Si = true;
+      if (Telescope[id]->CsI.Nstore > 0 && Telescope[id]->Front.Nstore > 0 && Telescope[id]->Back.Nstore > 0) S800coinc_both = true;
+    }
+
     //Place this after the alpha calibrations, f vs b, and high vs low
     //Since we have E-CsI only, no point in solutions without CsI. Continue if none
     //TODO Do we want to save Si solutions without CsI? No use for inv mass but could be useful for debugging
     if (Telescope[id]->CsI.Nstore < 1) continue;
- 
+
+		//Fill unmatched PSD spectra
+		for (int i=0;i<Telescope[id]->CsI.Nstore;i++)
+		{
+      if (Telescope[id]->CsI.Order[i].qdcflag == 1)
+      {
+			  Histo->PSD_CsI_unmatched[id][i]->Fill(Telescope[id]->CsI.Order[i].energyR,Telescope[id]->CsI.Order[i].qdc);
+      }		
+    }
+
     //Make sure solutions are reset to 0 for each tele
     Telescope[id]->Nsolution = 0;
     Telescope[id]->CsINsolution = 0;
@@ -602,6 +886,7 @@ int gobbi::analyze(s800_results S800_results)
     int FrontN = Telescope[id]->Front.Nstore;
     int BackN = Telescope[id]->Back.Nstore;
 
+
     //TODO what's going on here? Looks like a way of saving CsI before matching, similar code after the matching
     if (Telescope[id]->CsI.Nstore >= 1)
     {
@@ -614,6 +899,7 @@ int gobbi::analyze(s800_results S800_results)
           if (Telescope[id]->CsI.Order[i].strip == Telescope[id]->CsI.Order[i+1].strip) break;
         }
       }
+
 
       //look for the simple case first
       //This is fine
@@ -635,6 +921,7 @@ int gobbi::analyze(s800_results S800_results)
 
     }
 
+
     //Saves events with only CsI (no Si) into an seperate solutions array
     if ((Telescope[id]->Front.Nstore < 1 || Telescope[id]->Back.Nstore < 1) && CsIN >= 1)
     {
@@ -647,16 +934,20 @@ int gobbi::analyze(s800_results S800_results)
     }
   }
 
+
   //plot E vs dE bananas and hitmap of paired E, CsI events, currently no hists for that
   //TODO all solutions will have CsI, don't need to check for that
   //Only high gain until you get good low cals
+  //cout << "here1 " << endl;
   for (int id=0;id<4;id++) 
   {
+    //Useful for tracking solutions across S800 coincidence events
+    if (Telescope[id]->Nsolution > 0 && S800_results.trig_coin == true) S800_complete = true;
+
     for (int isol=0;isol<Telescope[id]->Nsolution; isol++)
     {
       //fill in hitmap of gobbi
       Telescope[id]->position(isol); //calculates x,y pos, and lab angle
-
       Histo->xyhitmap->Fill(Telescope[id]->Solution[isol].Xpos, Telescope[id]->Solution[isol].Ypos);
       //Theta phi hit map
       Histo->tphitmap->Fill(Telescope[id]->Solution[isol].theta*180./acos(-1.)*cos(Telescope[id]->Solution[isol].phi),Telescope[id]->Solution[isol].theta*180./acos(-1.)*sin(Telescope[id]->Solution[isol].phi));
@@ -671,8 +962,36 @@ int gobbi::analyze(s800_results S800_results)
       float theta = Telescope[id]->Solution[isol].theta;
 
       Histo->DEE_CsI[id][icsi]->Fill(Ener, dEner); //Not angle corrected
-      Histo->DEE_CsI_0deg[id][icsi]->Fill(Ener, dEner*cos(theta)); //angle corrected
 
+      int chan = id*4 + icsi;
+      Histo->CsI_Energy_R[chan]->Fill(Ener);
+
+      //Gates on S800 coincidences
+      if (S800_results.trig_coin == true) Histo->DEE_CsI_S800Coinc[id][icsi]->Fill(Ener, dEner);
+      if (S800_results.Zbeam == 14 && S800_results.Abeam == 23) Histo->DEE_CsI_S800Coinc_Si23[id][icsi]->Fill(Ener, dEner);
+
+      Histo->DEE_CsI_0deg[id][icsi]->Fill(Ener, dEner*cos(theta)); //angle corrected
+			Histo->PSD_CsI_matched[id][icsi]->Fill(Telescope[id]->Solution[isol].energyR,Telescope[id]->Solution[isol].qdc);
+
+      //Fills raw CsI energy for center crystal hits
+      // Chan     F     B     theta (deg)
+      //  0      7,8   7,8        3.5
+      //  1      7,8  23,24       7.0
+      //  2     23,24 23,24       7.9
+      //  3     23,24  7,8        5.2
+      int fstrip = Telescope[id]->Solution[isol].ifront;
+      int bstrip = Telescope[id]->Solution[isol].iback;
+      if (fstrip == 7 || fstrip == 8 || fstrip == 23 || fstrip == 24)
+      {
+        if (bstrip == 7 || bstrip == 8 || bstrip == 23 || bstrip == 24)
+        {
+          Histo->CsI_Energy_R_center[chan]->Fill(Ener);
+          //cout << " f b " << fstrip << " " << bstrip << " theta " << theta*180./acos(-1.) << endl;
+
+        }
+      }
+
+      continue;
       //Fills hists for f vs b energy and matched strips
       Histo->GFBE_Matched[id]->Fill(Telescope[id]->Solution[isol].denergy,Telescope[id]->Solution[isol].benergy);
 
@@ -687,19 +1006,73 @@ int gobbi::analyze(s800_results S800_results)
 
   //calculate and determine particle identification PID in the Telescope
   int Pidmulti = 0;
+  int nump_count = 0;
+  flag1p = false;
+  flag2p = false;
+  flag3p = false;
+  flagalpha = false;
   for (int id=0;id<4;id++) 
   {
-    Pidmulti += Telescope[id]->getPID();
+    Pidmulti += Telescope[id]->getPID(runno);
+
+    //Tick up for protons to get num 2p
+    for (int isol=0;isol<Telescope[id]->Nsolution; isol++)
+    {
+
+      if (Telescope[id]->Solution[isol].ipid == 1)
+      {
+
+        if (Telescope[id]->Solution[isol].iZ == 1 && Telescope[id]->Solution[isol].iA == 1)
+        {
+          num_protons++;          
+          nump_count++;
+
+          //Proton energy before egain
+          double pEkin = Telescope[id]->Solution[isol].energy;
+          Histo->CsI_Energyp_cal[Telescope[id]->Solution[isol].iCsI + 4*id]->Fill(pEkin);
+        }
+        if (Telescope[id]->Solution[isol].iZ == 2 && Telescope[id]->Solution[isol].iA == 4)
+        {
+          flagalpha = true;
+        }
+      }
+    }
   }
+
+  if (nump_count > 2) flag3p = true;
+
+  if (nump_count == 1)
+  {
+    flag1p = true;
+    num1p++;
+  }
+  if (nump_count == 2)
+  {
+    flag2p = true;
+    num2p++;
+  }
+
+  //cout << num1p << endl;
 
   //calc sumEnergy,then account for Eloss in target, then set Ekin and momentum of solutions
   //Eloss files are loaded in Telescope
   //For hits in Gobbi, eloss through aluminum absorber and target
   //For S800 hit, eloss through BC400 and target
+
   for (int id=0;id<4;id++) 
   {
     Telescope[id]->calcEloss();
+
+    for (int isol=0;isol<Telescope[id]->Nsolution;isol++)
+    {
+      //This is for histogramming the proton beam energy before target
+      double pEkin = Telescope[id]->Solution[isol].Ekin;
+      if (pEkin > 0) {
+      Histo->CsI_Energy_protonBE[Telescope[id]->Solution[isol].iCsI + 4*id]->Fill(pEkin); }
+    }
+
   }
+
 
   return multiECsI;
 }

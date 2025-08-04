@@ -43,7 +43,7 @@ class telescope
   int multiHitdEECsI();
   void load(int,int,int,int,int,int,int,int,int,int,int,int,int,int,int,int);
 
-  int getPID();
+  int getPID(int runno);
   int calcEloss();
 
   CLosses * Targlosses;
@@ -86,6 +86,7 @@ class telescope
   pid * Pid;
   pid * EPid;
   pid * PidECsI[4];
+  pid * PidECsI90;
 
   int simpleFrontBack();
   void position(int);
@@ -106,6 +107,7 @@ class telescope
   float Xcenter; // center of detector in cm along x axis
   float Ycenter; // center of detector in cm along y axis
   float SiWidth;
+  float SiFrame;
   CRandom *Ran;
   targthick *Tthick;
 

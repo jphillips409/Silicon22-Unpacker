@@ -20,6 +20,7 @@ pid::pid(string file, bool S800)
   }
   else ifile >> nlines;
   par = new ZApar*[nlines];
+
   for (int i=0;i<nlines;i++)
   {
     par[i] = new ZApar(ifile);
@@ -51,6 +52,7 @@ bool pid::getPID(float x, float y)
   if (nlines == 0) return false;
   Z = 0;
   A = 0;
+  //cout << "getPID " << endl;
   for (int i=0;i<nlines;i++)
   {
     if (par[i]->inBanana(x,y))
@@ -193,6 +195,61 @@ float pid::getMass(int iZ,int iA)
     else if (iA == 17) return Mass_17F;
     else if (iA == 18) return Mass_18F;
     else if (iA == 19) return Mass_19F;
+    else 
+    {
+      cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;
+      abort(); 
+    }
+  }
+  else if (iZ == 10)
+  {
+    if (iA == 17) return Mass_17Ne;
+    else if (iA == 18) return Mass_18Ne;
+    else if (iA == 19) return Mass_19Ne;
+    else if (iA == 20) return Mass_20Ne;
+    else 
+    {
+      cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;
+      abort(); 
+    }
+  }
+  else if (iZ == 11)
+  {
+    if (iA == 20) return Mass_20Na;
+    if (iA == 21) return Mass_21Na;
+    else 
+    {
+      cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;
+      abort(); 
+    }
+  }
+  else if (iZ == 12)
+  {
+    if (iA == 20) return Mass_20Mg;
+    else if (iA == 21) return Mass_21Mg;
+    else if (iA == 22) return Mass_22Mg;
+    else 
+    {
+      cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;
+      abort(); 
+    }
+  }
+  else if (iZ == 13)
+  {
+    if (iA == 21) return Mass_21Al;
+    if (iA == 22) return Mass_22Al;
+    if (iA == 23) return Mass_23Al;
+    else 
+    {
+      cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;
+      abort(); 
+    }
+  }
+  else if (iZ == 14)
+  {
+    if (iA == 22) return Mass_22Si;
+    else if (iA == 23) return Mass_23Si;
+    else if (iA == 24) return Mass_24Si;
     else 
     {
       cout << "No mass info for Z = "<< iZ << " A =" << iA << endl;

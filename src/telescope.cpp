@@ -21,6 +21,7 @@ telescope::telescope(bool S800)
 {
  //Verify these numbers
   SiWidth = 6.42;
+  SiFrame = 7.237;
 
   //switch which loss file is used depending on the target.
 
@@ -75,8 +76,10 @@ void telescope::init(int id0)
   //  |____| 2  |
   //       |____|
   //TODO silicons may be slightly off centered, get actual positions. Also now at 35 mm hole, change centers
-  float const XcenterA[4] = {4.624,2.631,-4.624,-2.631};
-  float const YcenterA[4] = {2.631,-4.624,-2.631,4.624};
+  //float const XcenterA[4] = {4.624,2.631,-4.624,-2.631};
+  //float const YcenterA[4] = {2.631,-4.624,-2.631,4.624};
+  float const XcenterA[4] = {1.75 + SiFrame/2.,SiFrame/2. - 1.75,-1.75 - SiFrame/2.,-SiFrame/2. + 1.75};
+  float const YcenterA[4] = {SiFrame/2. - 1.75,-1.75 - SiFrame/2.,-SiFrame/2. + 1.75,1.75 + SiFrame/2.};
   Xcenter = XcenterA[id];
   Ycenter = YcenterA[id];
   
@@ -90,7 +93,10 @@ void telescope::init(int id0)
     PidECsI[i] = new pid(outstring.str(), false); //don't use S800 zline filepath
   }
 
-
+  //CsI-0 PID is complicated
+  //It has two gain settings: 15 and 90. All other detectors use gain 15 for all runs
+  //PidECsI[] holds the gain 15 zlines, must define a separate one just for dealing with CsI-0 gain 90
+  PidECsI90 = new pid("pid_quad1_CsI1_90", false);
 }
 
 void telescope::SetTarget(double dist, float thick)
@@ -244,6 +250,7 @@ int telescope::simpleECsI()
   Solution[Nsolution].denergy = Front.Order[0].energy;
   Solution[Nsolution].denergylow = Front.Order[0].energylow;
   Solution[Nsolution].denergyR = Front.Order[0].energyR;
+  Solution[Nsolution].qdc = CsI.Order[0].qdc;
 
   Solution[Nsolution].ifront = Front.Order[0].strip;
   Solution[Nsolution].iback = Back.Order[0].strip;
@@ -417,9 +424,9 @@ int telescope::multiHitECsI()
         int ii = sil[icsi][i];
         //Do zline check
         int zCheck = 0;
-        //Need to include high and low gain
-        if (Front.Order[ii].energy < 30) zCheck = PidECsI[id]->getEGate(CsI.Order[0].energyR,Front.Order[ii].energy);
-        if (Front.Order[ii].energy >= 30) zCheck = PidECsI[id]->getEGate(CsI.Order[0].energyR,Front.Order[ii].energylow);
+
+        zCheck = PidECsI[id]->getEGate(CsI.Order[0].energyR,Front.Order[ii].energy);
+
 
         if (zCheck == 0) continue;
         else 
@@ -434,6 +441,7 @@ int telescope::multiHitECsI()
           Solution[Nsolution].benergy = Back.Order[arrayB[ii]].energy;
           Solution[Nsolution].benergylow = Back.Order[arrayB[ii]].energylow;
           Solution[Nsolution].benergyR = Back.Order[arrayB[ii]].energyR;
+      		Solution[Nsolution].qdc = CsI.Order[order[icsi]].qdc;
 
           Solution[Nsolution].ifront = Front.Order[ii].strip;
           Solution[Nsolution].iback = Back.Order[arrayB[ii]].strip;
@@ -477,6 +485,7 @@ int telescope::multiHitECsI()
       Solution[Nsolution].benergy = Back.Order[arrayB[ii]].energy;
       Solution[Nsolution].benergylow = Back.Order[arrayB[ii]].energylow;
       Solution[Nsolution].benergyR = Back.Order[arrayB[ii]].energyR;
+      Solution[Nsolution].qdc = CsI.Order[order[icsi]].qdc;
 
       Solution[Nsolution].ifront = Front.Order[ii].strip;
       Solution[Nsolution].iback = Back.Order[arrayB[ii]].strip;
@@ -501,7 +510,7 @@ int telescope::multiHitECsI()
 
 //*************************************
 //finds particle identification - checks to see if particle is inside of z - bananas  
-int telescope::getPID()
+int telescope::getPID(int runno)
 {
   int pidmulti = 0;
   for (int isol=0; isol<Nsolution; isol++)
@@ -516,7 +525,6 @@ int telescope::getPID()
     float denergy;
     float angle;
     angle = Solution[isol].theta;
-
     //Gobbi has a mix of high and low gain for E and dE, telescope 1 has E back energy.
     //Angle correct dE at the end to preserve high and low gain dE without too much code
     //Use energyR for CsI silicon dE, high gain, no angle correction
@@ -527,17 +535,23 @@ int telescope::getPID()
 
     denergy = denergy*cos(angle); //angle correct dE now
     energyR = Solution[isol].energyR;
-
     bool FoundPid = false;
     if (isSiCsI)
     {
       //use raw energy for CsI PID
-      //cout << "CsIPid , id = " << id << endl;
-      FoundPid = PidECsI[Solution[isol].iCsI]->getPID(energyR, denergy);
-      Pid->Z = PidECsI[Solution[isol].iCsI]->Z;
-      Pid->A = PidECsI[Solution[isol].iCsI]->A;
-      Pid->mass = PidECsI[Solution[isol].iCsI]->mass;
+      //cout << Solution[isol].iCsI << endl;
+      if (Solution[isol].iCsI != 0 || runno > 131) FoundPid = PidECsI[Solution[isol].iCsI]->getPID(energyR, denergy);
+      if (Solution[isol].itele == 0 && Solution[isol].iCsI == 0 && runno <= 131)
+      {
+        FoundPid = PidECsI90->getPID(energyR, denergy);
+        PidECsI[Solution[isol].iCsI]->Z = PidECsI90->Z;
+        PidECsI[Solution[isol].iCsI]->A = PidECsI90->A;
+      }
+      //Pid->Z = PidECsI[Solution[isol].iCsI]->Z;
+      //Pid->A = PidECsI[Solution[isol].iCsI]->A;
+      //Pid->mass = PidECsI[Solution[isol].iCsI]->mass;
       //if(Pid->Z == 1 && Pid->A == 1) cout << "proton Si-CsI" << endl;
+
     }
     else
     {
@@ -547,13 +561,14 @@ int telescope::getPID()
     //no particle id is found
     if (!FoundPid) continue;
     else pidmulti++;
-
+    if (pidmulti == 2) cout << pidmulti << endl;
     Solution[isol].ipid = 1; //this can be adapted to be different values later
-    Solution[isol].iZ = Pid->Z;
-    Solution[isol].iA = Pid->A;
+    Solution[isol].iZ = PidECsI[Solution[isol].iCsI]->Z;
+    Solution[isol].iA = PidECsI[Solution[isol].iCsI]->A;
     
 
-    Solution[isol].mass = Pid->getMass(Pid->Z,Pid->A); //we want mass in energy units not AMU
+    Solution[isol].mass = PidECsI[Solution[isol].iCsI]->getMass(PidECsI[Solution[isol].iCsI]->Z,PidECsI[Solution[isol].iCsI]->A); //we want mass in energy units not AMU
+    //cout << Solution[isol].mass << endl;
 
     //take proton equivalent energies to light equivalent
     if (isSiCsI)
@@ -581,7 +596,6 @@ int telescope::calcEloss()
     //kinetics calc, add Delta and energy for total energy
     float sumEnergy = Solution[isol].denergy + Solution[isol].energy;
 
-
 //*****************************************
     float pc_before = sqrt(pow(sumEnergy+Solution[isol].mass,2) - pow(Solution[isol].mass,2));
     float velocity_before = pc_before/(sumEnergy+Solution[isol].mass);
@@ -591,16 +605,19 @@ int telescope::calcEloss()
     //Three target thickness for 9Be
 
     //Losses through 5 mm Al absorber. Only for Gobbi hits
-    float Althick = 1531.; //mg/cm^2
+    float Althick = 1351.; //mg/cm^2
     Althick = Althick/cos(Solution[isol].theta);
     float Alein = 0;
     Alein = Allosses->getEin(sumEnergy,Althick,Solution[isol].iZ,Solution[isol].mass/m0);
-
+    //cout << "AL " << sumEnergy << " " << Alein << endl;
     //Losses through 9Be target
-    float thick = Tthick->TargetThickness/2./cos(Solution[isol].theta);
-    //Targlosses = new CLosses(8,Tthick->TargType); //have to initialize here to include different targets
+    float thick = TargetThickness/2./cos(Solution[isol].theta);
+    //float thick = 369.6/cos(Solution[isol].theta); //For the Be proton cal run (2mm targ)
+    //cout << "thick 0 deg full " << TargetThickness << " half " << thick << endl;
+    //Targlosses = new CLosses(8,TargType); //have to initialize here to include different targets
     float ein = Targlosses->getEin(Alein,thick,Solution[isol].iZ,Solution[isol].mass/m0);
-
+    //cout << "Be " << Alein << " " << ein << endl;
+    //ein = ein*0.99; //REDUCE THE CALIBRATION BY SOME FACTOR
     Solution[isol].Ekin = ein;
 
     //calc momentum vector, energyTot, and velocity

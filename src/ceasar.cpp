@@ -1,678 +1,375 @@
  #include "ceasar.h"
 
+float r2d = 180.0/TMath::Pi();
 ceasar::ceasar(TRandom *ran0, histo_sort * Histo0, histo_read * Histo1, float shift0)
 {
   ran = ran0;
   Histo = Histo0;
   Histo_read = Histo1;
-  init(shift0); //shift in mm down beam
+  chipmap = "ceasar.map";
+  calfile = "cal/Caesar_new.cal";
+  posmap = "cal/DetPos.txt";
+  init(); //shift in mm down beam
 }
 
-
-void ceasar::init(float shift)
+/***********************************************************************/
+/* Destructor **********************************************************/
+/***********************************************************************/
+ceasar::~ceasar() {
+  cout << "start caesar destr" << endl;
+  cout << " stop caesar destr" << endl;
+}
+void ceasar::init()
 {
-  //  Doppler = new doppler(0.362); // beta for 65 Mev/A C-9
-  //  Doppler = new doppler(0.3323); // v/c for Ca-36 = 0.3323
-//  Doppler = new doppler(0.326477); // beta for 54 MeV/A Ne-17
-  tdc = new TDC1190*[2];
-  //tdc[0] = new TDC1190(3,20,128);
-  //tdc[1] = new TDC1190(3,1,128);
-  tdc[0] = new TDC1190(1,20,128);
-  tdc[1] = new TDC1190(1,1,128);
-
-  //make map of chips
-  ifstream ifile("ceasar.map");
-
-  if (!ifile.is_open())
-  {
-    cout << "ceasar map not found" << endl;
+  ifstream ifile(chipmap.c_str());
+  if (!ifile.is_open()) {
+    cout << "caesar map not found" << endl;
     abort();
   }
 
-
-  //The CAESAR mapping has been modified since e10001 to go off of the actual qdc number (starting from
-  //only the CAESAR qdcs (0-5)) rather than bank number
-  //the map file has the ring# detector_position# qdc# channel#
-  
-  //  getline(ifile,name);
-  int iring,iloc,iqdc,ichan;
-  for(int iqdc = 0;iqdc<6;iqdc++)
-  {
-    for(int ich = 0;ich<32;ich++)
-    {
-      MapC[iqdc][ich].iRing = -1;
-      MapC[iqdc][ich].iLoc = -1;
+  int iring,iloc,iadc,ichan;
+  for(int iadc = 0; iadc < 6; iadc++) {
+    for(int ich = 0; ich< 32; ich++) {
+      MapC[iadc][ich].iRing = -1;
+      MapC[iadc][ich].iLoc = -1;
     }
   }
 
-  for (;;)
-  {
-    ifile >> iring >> iloc >> iqdc >> ichan;
+  for (;;) {
+    ifile >> iring >> iloc >> iadc >> ichan;
     if (ifile.eof()) break;
     if (ifile.bad()) break;
-    iloc-=1; //The map starts at 1 rather than 0
-    MapC[iqdc][ichan].iRing = iring;
-    MapC[iqdc][ichan].iLoc = iloc;
-    //      cout << iring << " " << iloc << " " << iqdc << " " << ichan << endl;
-
+    MapC[iadc][ichan].iRing = iring;
+    MapC[iadc][ichan].iLoc = iloc;
+    MapC[iadc][ichan].iTDC = iadc;
+    MapC[iadc][ichan].iTDCChan = ichan;
   }
-
   ifile.close();
   ifile.clear();
-  //Read in QDC to TDC mapping
-  int it,itc;
-  ifile.open("CaesarQDCtoTDC.map");
-  if(!ifile.is_open())
-  {
-    cout << "Couldn't open QDC to TDC map" << endl;
-    abort();
-  }
-
-  for(;;)
-  {
-    ifile >> it >> itc >> iqdc >> ichan;
-    if(ifile.eof()) break;
-    if(ifile.bad()) break;
-
-    MapC[iqdc][ichan].iTDC = it;
-    MapC[iqdc][ichan].iTDCChan = itc;
-    //      if(it !=0)
-    //cout << it << " " <<  itc << " " << iqdc << " " << ichan << endl;
-  }
-
-  ifile.close();
-  ifile.clear();
-    
-  
-  //read in calibrations
-  int Ntele = 1;
-  int Nstrip = 192;
-  string name;
-
-  name = "cal/Caesar_new.cal";
-  calCeasar = new calibrate(Ntele,Nstrip,name,1, 0, false); //no weaving
-  // name = "cal/ceasar_time.cal";
-  // calCeasarT = new calibrate(Ntele,Nstrip,name,1);
 
   // read in detector angles
   float x,y,z;
-
-  for(int ir=0;ir<10;ir++)
-  {
-    for(int il = 0;il<24;il++)
-    {
-      //      cout << ir << " " << il << endl;
+  for(int ir = 0; ir < 10; ir++) {
+    for(int il = 0; il < 24; il++) {
       angle[ir][il] = -1000.;
       angle2[ir][il] = -1000.;
     }
   }
+  ifile.open(posmap.c_str());
+  if(!ifile.is_open()) {
+    cout << "Couldn't open CAESAR position files" << endl;
+    abort();
+  }
 
-  ifile.open("cal/DetPos.txt");
-  for (;;)
-  {
+  for (;;) {
     ifile >> iring >>  iloc >>  x >> y >> z;
     if (ifile.eof()) break;
     if (ifile.bad()) break;
-    
-    z = z - shift; // shift in mm
-
     float r = sqrt(pow(x,2)+pow(y,2)+pow(z,2));
     float theta = acos(z/r);
     float phi = atan2(y,-x);
-    angle[iring-1][iloc-1] = theta; 
-    angle2[iring-1][iloc-1] = phi; 
-    // cout << iring-1 << " " << " " << iloc-1 << " " << phi*180/acos(-1) << endl;
+    mag[iring-1][iloc-1] = r;
+    angle[iring-1][iloc-1] = theta;
+    angle2[iring-1][iloc-1] = phi;
   }
-  //  abort();
-  //   for(int i = 0;i<9;i++)
-  //     {
-  //       cout << abs(angle2[0][i] - angle2[0][i+2]) << endl;
-  //     }
-  //    abort();
-  //  cout << "End init" << endl;
+
+  ifile.close();
+  ifile.clear();
+
+  //read in calibrations
+  int Ntele = 1;
+  int Nstrip = 192;
+
+  calCeasar = new calibrate(Ntele,Nstrip,calfile.c_str(),1, 0, false); //no weaving
+
 }
+/***********************************************************************/
+/* Unpacker for CAESAR *************************************************/
+/* DAQ consists of 6 MADCs and 6 MTDCS *********************************/
+/***********************************************************************/
+bool ceasar::unpack(unsigned short * point, int runno) {
+  int NE = 0;
+  int NT = 0;
+  int NEM[192];
+  int NTM[192];
 
-
-//bool ceasar::unpack(unsigned short * point)
-bool ceasar::unpack(unsigned short * point, unsigned short *tdcpoint, int runno)
-{
-  Nxfp = 0;
-  NE = 0;
-  int Ring = 0;
-  int QDC =0;
-  int Loc =0;
-  int chan = 0;
-
-  NT = 0;
-  // S Gillespie - 2020/11/02 
-  // Changing point to tdcpoint in TDC unpacker
-  for (int itdc = 0;itdc<2;itdc++)
-  {
-    //the itdc 0/1 are different in the use of tdcpointer vs point, itdc0 also has CsI on it which was read
-    //earlier in the data stream
-    if(itdc == 0) 
-    { 
-      //check for ffff's
-      unsigned short f3 = *tdcpoint;
-      unsigned short f4 = *(tdcpoint+1);
-      if (f3 == 0xffff && f4 == 0xffff)
-      {
-        tdcpoint += 2;
-        continue;
-      } 
-      tdcpoint = tdc[itdc]->read(tdcpoint);
-      //     cout << "Tdc" << itdc << endl;
-      //     cout << "Ncaesar  " << tdc[itdc]->Ndata << endl;
-      for (int i =0;i< tdc[itdc]->Ndata;i++)
-      {
-        int id = -1;
-        //Throwing away all but the CAESAR data
-        if(itdc ==0 && tdc[itdc]->dataOut[i].channel <48)
-          continue;
-        if(itdc==1 && tdc[itdc]->dataOut[i].channel <16)
-          continue;
-
-        //mapping into unique ID number
-        if(itdc==0)
-          id = tdc[itdc]->dataOut[i].channel -48;
-        else
-          id = tdc[itdc]->dataOut[i].channel+64;
-
-        // skipping channels that have issue with time
-        //if (id<32 || (id >47 && id<64) || (id>95 && id<161) || id>175)
-        //{
-        //  continue;
-        //}
-
-
-        //cout <<"id = " << id << "   " << tdc[itdc]->dataOut[i].time << endl;
-        int itime = tdc[itdc]->dataOut[i].time;
-
-        if (tdc[itdc]->dataOut[i].order > 0) continue;
-
-        DataTC[NT].id  = id;
-        DataTC[NT].itime = itime;
-        DataTC[NT].itdc = itdc;
-        DataTC[NT].ichan = tdc[itdc]->dataOut[i].channel;
-        
-        float time;
-        if (runno > 111)
-          time = itime/10.;
-        else //time was shifted slightly between early and later runs.
-          time = itime/10. - 100;
-
-        DataTC[NT].time = time;
-        Histo->TCeasarCal1->Fill(time);
-        Histo->TCeasarRaw1->Fill(itime/10.);
-        Histo->TCeasar[id]->Fill(itime/10.);
-        Histo->TCeasarRawSum->Fill(id, itime/10.);
-        //cout << "id " << id << endl;
-        //      Histo->TCSum->Fill(id,itime/10.);
-        NT++; 
-      }
-
-      unsigned short f1 = *tdcpoint;
-      tdcpoint++;
-      unsigned short f2 = *tdcpoint;
-      tdcpoint++;
-      if(f1 != 0xffff && f2 != 0xffff) return false;
-    }
-
-    else if(itdc == 1)
-    { 
-      //check for ffff's
-      unsigned short f3 = *point;
-      unsigned short f4 = *(point+1);
-      if (f3 == 0xffff && f4 == 0xffff)
-      {
-        point += 2;
-        continue;
-      } 
-      point = tdc[itdc]->read(point);
-      //     cout << "Tdc" << itdc << endl;
-      //     cout << "Ncaesar  " << tdc[itdc]->Ndata << endl;
-      for (int i =0;i< tdc[itdc]->Ndata;i++)
-      {
-        int id = -1;
-        //Throwing away all but the CAESAR data
-        if(itdc ==0 && tdc[itdc]->dataOut[i].channel <48)
-          continue;
-        if(itdc==1 && tdc[itdc]->dataOut[i].channel <16)
-          continue;
-
-        //mapping into unique ID number
-        if(itdc==0)
-          id = tdc[itdc]->dataOut[i].channel -48;
-        else 
-          id = tdc[itdc]->dataOut[i].channel+64;
-
-        // skipping channels that have issue with time
-        //if (id<32 || (id >47 && id<64) || (id>95 && id<161) || id>175)
-        //{
-        //  continue;
-        //}
-
-
-
-        // cout <<"id = " << id << endl;
-        int itime = tdc[itdc]->dataOut[i].time;
-
-        if (tdc[itdc]->dataOut[i].order > 0) continue;
-
-        DataTC[NT].id  = id;
-        DataTC[NT].itime = itime;
-        DataTC[NT].itdc = itdc;
-        DataTC[NT].ichan = tdc[itdc]->dataOut[i].channel;
-
-        float time;
-        if (runno > 111)
-          time = itime/10.;
-        else //time was shifted slightly between early and later runs.
-          time = itime/10. - 100;
-
-        DataTC[NT].time = time;
-        Histo->TCeasarCal2->Fill(time);
-        Histo->TCeasarRaw2->Fill(itime/10.);
-        Histo->TCeasar[id]->Fill(itime/10.);
-        Histo->TCeasarRawSum->Fill(id, itime/10.);
-        NT++; 
-      }
-
-      unsigned short f1 = *point;
-      point++;
-      unsigned short f2 = *point;
-      point++;
-      if(f1 != 0xffff && f2 != 0xffff) return false;
-    }
+  for(int i = 0; i < 192; i++) {
+    NEM[i] = 0;
+    NTM[i] = 0;
   }
-  Histo->CTMult->Fill(NT);
 
-  //These are actually ADCs for 36Ca exp in nov2020
-  for (int iqdc = 0;iqdc<6;iqdc++)
-  {
-
+  for (int iadc  = 0; iadc < 6 ; iadc++) {
     //check for ffff's
     unsigned short f3 = *point;
     unsigned short f4 = *(point+1);
-    if (f3 == 0xffff && f4 == 0xffff) 
-    {
+    if (f3 == 0xffff && f4 == 0xffff) {
+      //cout << "continue " << hex << f3 << " " << f4 << endl;
       point+=2;
-      continue; 
+      continue;
     }
-
-    Caen.number = 0;
-    point = Caen.read(point);  // suck out the info in the qdc
-    for (int i=0;i<Caen.number;i++)
-    {
+    //cout << hex << f3 << " " << f4 << endl;
+    Caen[iadc].number = 0;
+    point = Caen[iadc].read(point);  // suck out the info in the adc
+    for (int i = 0; i < Caen[iadc].number; i++) {
       bool overflow = 0.;
       bool underflow = 0.;
+      if (Caen[iadc].underflow[i]) {
+        underflow = 1;
+      }
+      if (Caen[iadc].overflow[i]) {
+        overflow = 1;
+      }
 
-
-      if (Caen.underflow[i])
-        underflow  =1;
-      if (Caen.overflow[i])
-        overflow =1;
-        
-      int id = Caen.channel[i] + 32*iqdc;
-      int ienergy = Caen.data[i];
-      chan = Caen.channel[i]; 
-      if(id <0 || id > 192) continue;
-
-      if(overflow)
-      {
-        //cout << "overflow " << id << endl;
+      int id = Caen[iadc].channel[i] + 32*iadc;
+      int ienergy = Caen[iadc].data[i];
+      if(overflow) {
+//        cout << "overflow " << id << endl;
         ienergy = 5000;
       }
-      if(underflow)
-      {
-        //cout << "underflow " << id << endl;
+      if(underflow) {
+//        cout << "underflow " << id << endl;
         ienergy = 5100;
       }
+      float energy = calCeasar->getEnergy(0, id, ienergy + ran->Rndm());
+      //cout << dec << "ADC ID " << id << hex << endl;
+      //Save first value for multihit
+      if (NEM[id] == 0)
+      {
+        DataEC[id].id = id;
+        //if (id == 192) cout << id << endl;
+        DataEC[id].ienergy = ienergy + ran->Rndm();
+        DataEC[id].energy = energy;
+        DataEC[id].iadc = iadc;
+        DataEC[id].ichan = Caen[iadc].channel[i];
+        int Ring = MapC[iadc][Caen[iadc].channel[i]].iRing;
+        int Loc = MapC[iadc][Caen[iadc].channel[i]].iLoc;
+        DataEC[id].iRing = Ring;
+        DataEC[id].iLoc = Loc;
+        DataEC[id].pos.SetMagThetaPhi(mag[Ring][Loc], angle[Ring][Loc], angle2[Ring][Loc]);
+        DataEC[id].theta = angle[Ring][Loc];
+        DataEC[id].phi = angle2[Ring][Loc];
 
-      DataEC[NE].id = id;
-      DataEC[NE].ienergy = ienergy;
-      DataEC[NE].iqdc = iqdc;
-      DataEC[NE].ichan = chan;
+        //int temp_id = id;
+        //float temp_Mag = mag[Ring][Loc];
+        //int temp_ring = Ring;
+        //float temp_phi = angle2[Ring][Loc];
+        //cout << "New i " << temp_id << " " << temp_ring << " " << temp_Mag << " " << temp_phi << endl;
+
+      }
       
-      // cout << ienergy << " "<< Bank << " " << chan << " ";
-      Ring = MapC[iqdc][chan].iRing;
-      Loc = MapC[iqdc][chan].iLoc;
-
-      DataEC[NE].iRing = Ring;
-      DataEC[NE].iLoc = Loc;
-      DataEC[NE].theta = angle[Ring][Loc];
-      DataEC[NE].phi= angle2[Ring][Loc];
-        
-      //cout << "ring " << Ring << "  loc " << Loc << "  id " << id << endl;
-      if(Ring == -1 || Loc == -1) continue;
-
-      //get calibrated ceasar energies, linear calibration used
-      float energy = calCeasar->getEnergy(0,id,ienergy+ran->Rndm());
-      DataEC[NE].energy = energy;
-      float dop_energy = (1./sqrt(1.-pow(0.379,2)))*energy*(1.- 0.379*cos(DataEC[NE].theta));
-      DataEC[NE].dop_energy = dop_energy;
-
-      //Histo->RingSum[Ring]->Fill(Loc,ienergy);
-      Histo->ECeasarRawSum->Fill(id,ienergy);
-      Histo->ECeasarCalSum->Fill(id,energy);
-      Histo->ECeasarDopSum->Fill(id,dop_energy);
-
-      //Histo->RingSum_Cal[Ring]->Fill(Loc,energy);
-      Histo->ECeasar[id]->Fill(ienergy);
-      //      Histo->ECSum->Fill(id,ienergy);
-      Histo->ECCeasar[id]->Fill(energy);
-      Histo->TECeasar->Fill(energy);
-      Histo->TECeasar_difbin->Fill(energy);
-      DataEC[NE].Total += energy;
-
+      Histo->ECaesar[id]->Fill(energy);
+      Histo->energyM->Fill(id);
+      Histo->energyiSum->Fill(id, ienergy + ran->Rndm());
+      Histo->energySum->Fill(id, energy);
+      Histo->energyTot->Fill(energy);
       NE++;
-    }
+      NEM[id]++;
 
+    }
+    //check for ffff's
+    unsigned short f1 = *point;
+    point++;
+    unsigned short f2 = *point;
+    point++;
+    
+    //cout << f1 << " " << f2 << endl;
+    if(f1 != 0xffff && f2 != 0xffff) return false;
+  }
+
+  for (int itdc = 0; itdc < 6; itdc++) {
+    unsigned short f3 = *point;
+    unsigned short f4 = *(point+1);
+    if (f3 == 0xffff && f4 == 0xffff) {
+      point+=2;
+      continue;
+    }
+    Mtdc[itdc].trigger = false;
+    point = Mtdc[itdc].read(point);  // suck out the info in the tdc
+    if(Mtdc[itdc].number > 100) continue;
+    uint64_t ts = (static_cast<uint64_t>(Mtdc[itdc].tstamplow)) | (static_cast<uint64_t>(Mtdc[itdc].tstamphigh) << 16) | (static_cast<uint64_t>(Mtdc[itdc].tstampxtend) << 32);
+    for(int j = 0; j < Mtdc[itdc].number; j++) {
+      if(Mtdc[itdc].channel[j] == 34) continue; //Extended timestamp
+      if(Mtdc[itdc].channel[j] == 32 || Mtdc[itdc].channel[j] == 33) { //Trigger Channel
+	      Mtdc[itdc].trigger = true;
+	      continue;
+      }
+      int id = Mtdc[itdc].channel[j] + 32*itdc;
+      int itime = Mtdc[itdc].data[j];
+      //cout << Mtdc[itdc].channel[j] << endl;
+      //cout << "Mtdc number " << Mtdc[itdc].number << " no itdc id " << Mtdc[itdc].channel[j] << " id " << id  << " itdc " << itdc << endl;
+      //Save first value for multihit
+      if (NTM[id] == 0)
+      {
+        DataTC[id].id  = id;
+        DataTC[id].itime = itime;
+        DataTC[id].time = itime * Mtdc[itdc].res / 1000.0; // Convert to ns
+        DataTC[id].itdc = itdc;
+        DataTC[id].ichan = Mtdc[itdc].channel[j];
+      }
+
+      Histo->TCaesar[id]->Fill(itime);
+      Histo->timeSum->Fill(id, itime);
+      Histo->timeM->Fill(id);
+
+      NT++;
+      NTM[id]++;
+
+    }
     //check for ffff's
     unsigned short f1 = *point;
     point++;
     unsigned short f2 = *point;
     point++;
     if(f1 != 0xffff && f2 != 0xffff) return false;
-
-  }
-  Histo->CEMult->Fill(NE);
-
-  //if (NE == 1 && NT == 1)
-  //{
-  //  Histo->ECeasar[DataEC[0].id]->Fill(DataEC[0].ienergy);
-  //  Histo->ECeasarRawSum->Fill(DataEC[0].id,DataEC[0].ienergy);
-  //}
-
-
-  //addback on the energies without matching for time info
-  N_NoTaddback = 0;
-  int NoTaddbackmult = 0;
-  std::vector<int> NoTmyvector;
-  for(int i =0;i< NE;i++)
-  {
-    bool addedback = 0;
-    float sum = 0.;
-    sum = DataEC[i].energy;
-    float maxE = sum;
-    int maxE_indx = i;
-    //check to see if any energies, at index values stored in myvector,
-    //were already added back already. Skip these.
-    if(i != 0)
-    {
-      for(int v = 0;v<(int)NoTmyvector.size();v++)
-      {
-        if(i == NoTmyvector.at(v))
-          addedback = 1;
-      }
-    }
-
-    if(addedback)
-      continue;
-    else
-    {
-      for(int j = i+1;j<NE;j++)
-      {
-        if(abs(DataEC[i].iRing - DataEC[j].iRing) <= 2)
-        {
-          if(abs(DataEC[i].phi - DataEC[j].phi) < 3.14/2)
-          {
-            sum += DataEC[j].energy;
-            if(maxE < DataEC[j].energy)
-            {
-              maxE = DataEC[j].energy;
-              maxE_indx = j;
-            }
-
-            NoTmyvector.push_back(j);
-            NoTaddbackmult++;
-        
-          }
-        }
-      }
-      NoTadded[N_NoTaddback]=DataEC[maxE_indx];
-      NoTadded[N_NoTaddback].energy = sum;
-      NoTadded[N_NoTaddback].addbackmult = NoTaddbackmult;
-      N_NoTaddback++;
-    }
   }
 
+  Histo->adctdcM->Fill(NE, NT);
 
-
-
-  //code to double check that each caesar det is mapped correctly
-  int shift[10] = {0,10,24,48,72,96,120,144,168,182};
-
-  if (NT >1)
-  {
-    for(int i1=0; i1<NT-1; i1++)
-    {
-      for(int i2=i1+2; i2<NT; i2++)
-      {
-        Histo->map_DataTC_id_id->Fill(DataTC[i1].id,DataTC[i2].id);
-        Histo->map_DataTC_id_id->Fill(DataTC[i2].id,DataTC[i1].id);
-      }
-    }
-  }
-
-  if (NE >1)
-  {
-    for(int i1=0; i1<NE-1; i1++)
-    {
-      for(int i2=i1+2; i2<NE; i2++)
-      {
-
-        int idet1 = shift[DataEC[i1].iRing] + DataEC[i1].iLoc;
-        int idet2 = shift[DataEC[i2].iRing] + DataEC[i2].iLoc;
-
-        Histo->map_iring_iring->Fill(DataEC[i1].iRing,DataEC[i2].iRing);
-        Histo->map_iring_iring->Fill(DataEC[i2].iRing,DataEC[i1].iRing);
-
-        Histo->map_DataEC_id_id->Fill(DataEC[i1].id,DataEC[i2].id);
-        Histo->map_DataEC_id_id->Fill(DataEC[i2].id,DataEC[i1].id);
-
-        Histo->map_idet_idet->Fill(idet1,idet2);
-        Histo->map_idet_idet->Fill(idet2,idet1);
-
-        //double delta_phi = fabs(DataEC[i1].phi - DataEC[i2].phi)*180./acos(-1);
-        //Histo->delta_phi_gamma->Fill(delta_phi);
-
-        if (fabs(idet1 - idet2)-25 < 3)
-        {
-          double delta_phi = fabs(DataEC[i1].phi - DataEC[i2].phi)*180./acos(-1);
-          Histo->delta_phi_gamma->Fill(delta_phi); 
-        }
-
-      }    
-    }
-  }
-
-  for(int i1=0; i1<NE; i1++)
-  { 
-    int idet1 = shift[DataEC[i1].iRing] + DataEC[i1].iLoc;
-    
-    Histo->ECeasarRawSum_idet->Fill(idet1,DataEC[i1].ienergy);
-    Histo->ECeasarCalSum_idet->Fill(idet1,DataEC[i1].energy);
-    Histo->ECeasarDopSum_idet->Fill(idet1,DataEC[i1].dop_energy);
-  }
-
-  //  cout << "NE = " << NE << " NT = " << NT << endl;
+  if(NE > 192 || NT > 192) return false;
   Nselect = 0;
-  // match up energies to times
-  for (int ie=0;ie<NE;ie++)
-  {
-    DataEC[ie].itime = -1;
-    DataEC[ie].time = -1;
-    for (int it=0;it<NT;it++)
-    {
-      //cout << "timeID " << DataTC[it].id << " energyID " << DataEC[ie].id << endl;
-      //cout << "time Ring " << DataTC[ie].iRing << " time loc " << DataTC[i1].iLoc << endl;
-      //cout << "ener Ring " << DataEC[ie].iRing << " ener loc " << DataEC[i1].iLoc << endl;
-
-      if (DataEC[ie].id == DataTC[it].id) //we have matched
-      {
-        int iQDC = DataEC[ie].iqdc;
-        int iChan = DataEC[ie].ichan;
-
-        //cout << "match!!!! " << endl;
-          
-        if(DataTC[it].itdc != MapC[iQDC][iChan].iTDC ||
-           DataTC[it].ichan != MapC[iQDC][iChan].iTDCChan)
-        {
-          cout << "You've d    int idet1 = shift[DataEC[i1].iRing] + DataEC[i1].iLoc;one a bad job mapping" << endl;
-          abort();
-        }
-
-        //cout << DataEC[ie].id << endl;
-        DataEC[ie].itime = DataTC[it].itime;
-        DataEC[ie].time = DataTC[it].time;
-            // if (DataEC[ie].itime > 3000 && DataEC[ie].itime < 6000 
-        //       && DataEC[ie].iRing != -1)
-        if(DataEC[ie].iRing !=-1)
-        {
-          //               Histo->ECMSum->Fill(DataEC[ie].id,DataEC[ie].ienergy);
-          //float dop_energy = 0.;//Doppler->correct(DataEC[ie].energy,DataEC[ie].theta);
-          //Histo->TEC_Dop->Fill(dop_energy);
-          
-          //cout << "DataEC[ie].itime " << DataEC[ie].itime/10 << " DataEC[ie].time " << DataEC[ie].time << endl;
-          
-          if (1) // (DataEC[ie].itime/10 > -750 && DataEC[ie].itime/10 < 250)
-          {
-
-            select[Nselect] = DataEC[ie];
-            //select[Nselect].dop_energy = dop_energy;
-            Nselect++;
-          }
-        }
-        break;
-      }//end if (DataEC[ie].id == DataTC[it].id)
-      //else if (DataEC[ie].id < DataTC[it].id) break; // no match found
-    } //end loop over NT
-  }//end loop over NE
-
-
-  //Used for Y-88, gate on the 1836keV peak, try to observe the 898keV.
-  float gateL = 1.8;
-  float gateR = 1.88;
-  for (int i=0; i<Nselect;i++)
-  {
-    if (select[i].energy > gateL && select[i].energy < gateR)
-    {
-      for (int j=0; j<Nselect;j++)
-      {
-        if (i!=j)
-        {
-          Histo->Egated->Fill(select[j].energy);
-
-          float Timedif = select[i].time - select[j].time;
-          //cout << added[i].time << "   " << added[j].time << endl;
-          Histo->TvsEgated->Fill(select[j].energy, Timedif);
-          Histo->TCeasarSum_gated->Fill(select[j].id, select[j].time);
-
-/*
-            if (select[j].energy > 0.85 && select[j].energy < 0.95 && Timedif < -200)
-            {
-              cout << "NE " << NE << endl;
-              for (int k=0; k<NE;k++)
-              {
-                cout << "k " << k << "  id " << DataEC[k].id << "  E=" << DataEC[k].energy << "  iqdc,ichan " << DataEC[k].iqdc << "," << DataEC[k].ichan << endl;
-              }
-              cout << " NT " << NT << endl;
-              for (int k=0; k<NT;k++)
-              {
-                cout << " k " << k << "  id " << DataTC[k].id << "  T=" << DataTC[k].itime << "  iqdc,ichan " << DataTC[k].itdc << "," << DataTC[k].ichan << endl;
-              }
-              //abort();
-
-            }
-*/
-
-        }
-      }  
-      continue;
+  int NET = 0;
+  for(int i = 0; i < 192; i++) {
+    if(NEM[i] > 0) {
+      Histo->ETCaesar[i]->Fill(NTM[i], DataEC[i].energy);
+      if(NTM[i] == 0) {
+	Histo->energyT0Tot->Fill(DataEC[i].energy);
+      }
+      Histo->mult[i]->Fill(NEM[i], NTM[i]);
+    }
+    if(NTM[i] > 0) {
+      Histo->TECaesar[i]->Fill(NEM[i], DataTC[i].itime);
+      if(NEM[i] ==  0) Histo->mult[i]->Fill(NEM[i], NTM[i]); //TODO why == 0???
+      if(NEM[i] >  0) {
+	      Histo->energyTSum->Fill(DataEC[i].id, DataEC[i].energy);
+	      Histo->energyTTot->Fill(DataEC[i].energy);
+	      Histo->energyTTotvsT->Fill(DataEC[i].energy,DataTC[i].itime);
+	      if (DataTC[i].itime >= 2000 && DataTC[i].itime <= 3700) Histo->energyTTot_tgated->Fill(DataEC[i].energy);
+      	if(NEM[i] == 1 && NTM[i] == 1) Histo->energyT1Tot->Fill(DataEC[i].energy);
+      	if(NEM[i] == 1 && NTM[i] > 1) Histo->energyT2Tot->Fill(DataEC[i].energy);
+        DataEC[i].itime = DataTC[i].itime;
+        DataEC[i].time = DataTC[i].time;
+	      select[NET] = DataEC[i];
+	      NET++;
+        Nselect++;
+       
+      }
     }
   }
 
-  for (int i=0; i<Nselect;i++)
-  {
-    int idet = shift[select[i].iRing] + select[i].iLoc;
-    Histo->TCeasarMatchedSum_idet->Fill(idet, select[i].itime/10);
-    Histo->ECeasarMatchedRawSum_idet->Fill(idet, select[i].ienergy);
-    Histo->ECeasarMatchedCalSum_idet->Fill(idet, select[i].energy);
-  }
-
+  NTSelect = NET;
 
   Nadded = 0;
-  int addbackmult = 0;
-  std::vector<int> myvector;
-  for(int i =0;i< Nselect;i++)
-  {
-    bool addedback = 0;
-    float sum = 0.;
-    sum = select[i].energy;
-    float maxE = sum;
-    int maxE_indx = i;
-    //check to see if any energies, at index values stored in myvector,
-    //were already added back already. Skip these.
-    if(i != 0)
-    {
-      for(int v = 0;v<(int)myvector.size();v++)
-      {
-        if(i == myvector.at(v))
-          addedback = 1;
-      }
-    }
+  std:vector<bool> addback;
+  addback.resize(NET, false);
+  vector<int> addback_int;
+  addback_int.resize(NET, 0);
+  vector<int> jadded;
+  for(int i = 0; i < NET; i++) {
+    float sum = 0.0;
+    sum = select[i].energy; 
+    tempAdd = select[i]; //Pass select to temp
+    if(addback.at(i)) continue;
+    //if(DataEC[i].itime < 2000 || DataEC[i].itime > 3700) continue;
+    int temp_id = select[i].id;
+    //if (temp_id == 114) cout << "start" << endl;
+    //jadded.resize(NET,0);
+    for(int j = i+1; j < NET; j++) {
+      //skip if added already
+      if(addback.at(j)) continue;
 
-    if(addedback)
-      continue;
-    else
-    {
-      for(int j = i+1;j<Nselect;j++)
-      {
-        //cout << select[i].iRing << ", " << select[j].iRing << "   " << select[i].phi << ", " << select[j].phi << endl;
-        if(abs(select[i].iRing - select[j].iRing) <= 1)
+      //Add 2 pi to negative values
+      float phii = 0;
+      float phij = 0;
+
+      if (select[j].pos.Phi() < 0) phij = select[j].pos.Phi() + 2*acos(-1.);
+      else phij = select[j].pos.Phi();      
+  
+      if (select[i].pos.Phi() < 0) phii = select[i].pos.Phi() + 2*acos(-1.);
+      else phii = select[i].pos.Phi();
+
+      //Old version. Doesn't properly take negative phi into account
+      //Also didn't group the <= 1 and < 0.5 statements together
+      //if((abs(select[i].iRing - select[j].iRing) <=1) && (abs(select[i].pos.Phi() - select[j].pos.Phi()) < 0.5)
+	      //|| (abs(select[i].iRing - select[j].iRing) == 0 && abs(select[i].pos.Phi() - select[j].pos.Phi()) < 0.7))
+
+      //New version, adds 2pi to negative angles
+      if((abs(select[i].iRing - select[j].iRing) <=1 && (abs(phii - phij) < 0.5))
+	      || (abs(select[i].iRing - select[j].iRing) == 0 && abs(phii - phij) < 0.7)) {
+
+
+        //jadded.at(j) = 1;
+        //if (temp_id == 114 || temp_id == 116) cout << select[i].id << " " << select[j].id << endl;
+
+	      sum += select[j].energy;
+	      if(select[i].energy < select[j].energy) 
         {
-          if(abs(select[i].phi - select[j].phi) < 0.5)
-          {
-            sum += select[j].energy;
-            if(maxE < select[j].energy)
-            {
-              maxE = select[j].energy;
-              maxE_indx = j;
-            }
+          //Don't change the select array, pass new variables to temp array 
+          tempAdd = select[j]; //Passes all properties of j to tempADD, energy gets rewritten later by added = sum
+          //select[i].id = select[j].id; //Old method
+         // addback_int.at(i) = select[j].id;
+          //addback_int.at(j) = select[j].id;
+          //for(int k = i+1; k < NET; k++) {
+            //if (jadded.at(k) == 1) addback_int.at(k) = select[j].id;
+          //}
 
-            myvector.push_back(j);
-            addbackmult++;
-        
-          }
         }
+       // else {
+         // addback_int.at(j) = select[i].id;
+          //addback_int.at(i) = select[i].id;
+          //for(int k = i+1; k < NET; k++) {
+            //if (added.at(k) == 1) addback_int.at(k) = select[i].id;
+          //}
+        //}
+
+
+	      addback.at(j) = true;
       }
-      added[Nadded]=select[maxE_indx];
-      added[Nadded].energy = sum;
-      added[Nadded].addbackmult = addbackmult;
-      Nadded++;
     }
+    added[Nadded] = tempAdd; //select[i]; //Added is the temp array now
+    //Correl Code uses energy in MeV
+    added[Nadded].energy = sum/1000.;
+    Nadded++;
   }
 
-  //cout << "Nselect " << Nselect << " Nadded " << Nadded << endl;
-  Histo->CETMult->Fill(Nselect);
+  //Print out the select gammas and the added gammas
+  /*bool in_select116 = false;
+  bool in_select114 = false;
+  bool in_select115 = false;
+  for (int i=0;i<NET;i++) {
+    if (select[i].id == 116) in_select116 = true;
+    if (select[i].id == 115) in_select115 = true;
+    if (select[i].id == 114) in_select114 = true;
+  }
+  //See what combinations are present
+  if (in_select116 == true && in_select114 == true) {
+    for (int i=0;i<NET;i++) cout << "Select " << select[i].id << " Add array " << addback_int.at(i) << " ring " << select[i].iRing << " Phi " << select[i].phi << endl;
+    for (int i=0;i<Nadded;i++) cout << "Added " << added[i].id << endl;
+  }*/
 
+
+  for(int i = 0; i < Nadded; i++) {
+    Histo->enAddback->Fill(added[i].energy * 1000.);
+    Histo->enAddbackvsT->Fill(added[i].energy * 1000.,added[i].itime);
+    if (added[i].itime >= 2000 && added[i].itime <= 3700) Histo->enAddback_tgated->Fill(added[i].energy * 1000.); //Time gated based on first hit
+  }
   return true;
-
 }
-//************************************
-ceasar::~ceasar()
-{
-  cout << "start ceasar destr" << endl;
 
-  delete tdc[0];
-  delete tdc[1];
-  delete [] tdc;
-  //delete Doppler;
-  cout << " stop ceasar destr" << endl;
-}
-//****************************
-void ceasar::reset()
-{
+/***********************************************************************/
+/* Reset ***************************************************************/
+/***********************************************************************/
+void ceasar::Reset() {
   Nselect = 0;
+  Nadded  = 0;
+  for(int i = 0; i < 192; i++) {
+    DataEC[i].energy = -1;
+    DataEC[i].ienergy = -1;
+    DataEC[i].itime = -1;
+    DataEC[i].time = -1;
+
+    DataTC[i].itime = -1;
+    DataTC[i].time = -1;
+    DataTC[i].itime = -1;
+    DataTC[i].ichan = -1;
+  }
 }

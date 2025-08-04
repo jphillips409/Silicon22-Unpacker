@@ -11,6 +11,8 @@ struct order
   float energylowR;  //low channels
   float energylow;
   float energyMax;
+	float qdcflag; //only used for CsI
+	float qdc; //only used for CsI
   int strip;
   int neighbours; //I smell australian here
   float time;
@@ -37,8 +39,8 @@ class elist
   int mult;
   
   elist();
-  void Add(int,float,float, int,int,float);
-  void Add(int, float, int, int);
+  void Add(int,float,float, int,int,float,float,int);
+  void Add(int, float, int, int,float,int);
   void Remove(int);
   void Copy(int, int);
   int  Reduce(const char*);

@@ -12,8 +12,10 @@
 #include "histo_sort.h"
 
 #include <iostream>
+#include <ios>
+
 //TODO do I need this config path? Seems needed for gain matching
-#define CONFIGPATH "/home/Silicon22/Silicon22sort/cal/fibers/"
+#define CONFIGPATH "cal/fibers/"
 
 //TODO need to link with correct histos
 // Constructor
@@ -22,6 +24,7 @@ janus::janus(histo_sort * Histo1, double d) {
 	SIPMevent = new Event();
 	Fiber = new fiber();
 	distance = d;
+  dist_pub = distance;
 
   //TODO need correct gain matching and directories
 	ReadGains(string(CONFIGPATH) + "blue_gain_matching.txt", bluegains);
@@ -30,6 +33,14 @@ janus::janus(histo_sort * Histo1, double d) {
 
 // Destructor
 janus::~janus() {}
+
+void janus::SetTarget(double Targetdist)
+{
+  //TODO Target position will need to change with S800 setting
+	distance = Targetdist;
+  dist_pub = distance;
+}
+
 
 // Read scaling values for gain matching from file
 void janus::ReadGains(string ifname, double* arr) {
@@ -53,6 +64,7 @@ bool janus::unpack(ifstream *pevtfile) {
   long nbytes = 0; //different from nbytes 1 & 2
 	int nbytes1 = 0;
   int nbytes2 = 0;
+  int nbytes_temp = 0; //Need this to check for bad boards
   int tunit = 0; // time unit
   int acqmode = 0;
   int evtsize1 = 0;
@@ -66,9 +78,17 @@ bool janus::unpack(ifstream *pevtfile) {
   pevtfile->read((char*)hbuffer,4);
   nbytes1 = hbuffer[0]; // inclusive size of the event
   nbytes2 = hbuffer[1]; // inclusive size of the event
-  if (nbytes2 != 0) nbytes1 += nbytes2;
+  //cout << "nbytes " << nbytes1 << " " << nbytes2 <<  " " << (nbytes2 << 8) << endl;
+  int inclsize = 0;
+  inclsize = nbytes1;
+  inclsize += (nbytes2 << 8);
+  //cout << hex << "inclsize " << inclsize << dec << endl;
+  //cout << "inclsize " << inclsize << endl;
+  //if (nbytes2 != 0) nbytes1 += nbytes2;
+  //if (nbytes2 != 0) n
   tunit = hbuffer[2];
   acqmode = hbuffer[3];
+ // cout << "t unit and acq mode " << tunit << " " <<acqmode << endl;
 
   int offset = 4; //tracking the event length in bytes
 
@@ -80,65 +100,103 @@ bool janus::unpack(ifstream *pevtfile) {
 
 	// Event loop (timing-only mode)
 	bool val;
-	for (;;) {
-		nbytes = SIPMevent->ReadEventFromStream(pevtfile, redgains, bluegains); // reads next event
-		//if (nbytes == -1) break; // stop at end of file
+	
+	
+	nbytes = SIPMevent->ReadEventFromStream(pevtfile, redgains, bluegains); // reads next event
+	//cout << "here nbytes from SIPM evt " << nbytes << endl;
 
-		//Event SIPMeventcur(SIPMevent);
-		//cout << SIPMeventcur->Print(true) << endl;
+  //cout << "Janus Timestamp " << SIPMevent->GetTimeStamp() << endl;
+	//if (nbytes == -1) break; // stop at end of file
 
-		// Loop through hits in event
-		unsigned char boardID = SIPMevent->GetBoardID();
-		int nhits = (int)SIPMevent->GetNHits();
-		for (int i = 0; i < nhits; i++) {
-			hit = SIPMevent->GetTimingEvent(i);
-			tot = hit.ToTmatched;
-			toa = hit.ToA;
-			pos = hit.pos;
-			// Fill histograms
-			if (toa > -1)
-				Histo->toa_hist->Fill(toa);
-			if (tot > -1 && boardID == 0)
-				Histo->tot_summary_red->Fill(pos, tot);
-			else if (tot > -1 && boardID == 1)
-				Histo->tot_summary_blue->Fill(pos, tot);
+	//Event SIPMeventcur(SIPMevent);
+	//cout << SIPMeventcur->Print(true) << endl;
 
-      //Fill 1d raw hists
-      if (boardID == 0)
-      {
-        Histo->B0TOA_R[pos]->Fill(toa);
-        Histo->B0TOT_R[pos]->Fill(tot);
-      }
-      if (boardID == 1)
-      {
-        Histo->B1TOA_R[pos]->Fill(toa);
-        Histo->B1TOT_R[pos]->Fill(tot);
-      }
-		}
+	// Loop through hits in event
+	unsigned char boardID = SIPMevent->GetBoardID();
+  //cout << "boardID " << boardID*1 << endl;
+	int nhits = (int)SIPMevent->GetNHits();
+	for (int i = 0; i < nhits; i++) {
+    if (boardID > 1)
+    {
+      cout << "BoardID > 1" << endl;
+      break;
+    }
+		hit = SIPMevent->GetTimingEvent(i);
+		tot = hit.ToTmatched;
+		toa = hit.ToA;
+		pos = hit.pos;
+		// Fill histograms
+		if (toa > -1)
+			Histo->toa_hist->Fill(toa);
+		if (tot > -1 && boardID == 0)
+			Histo->tot_summary_red->Fill(pos, tot);
+		else if (tot > -1 && boardID == 1)
+			Histo->tot_summary_blue->Fill(pos, tot);
+    
+    //Fill 1d raw hists
+    if (boardID == 0)
+    {
+      Histo->B0TOA_R[pos]->Fill(toa);
+      Histo->B0TOT_R[pos]->Fill(tot);
+    }
+    if (boardID == 1)
+    {
+      Histo->B1TOA_R[pos]->Fill(toa);
+      Histo->B1TOT_R[pos]->Fill(tot);
+    }
+  }
 		
     //Fill the event 
-		janusevts.push_back(*SIPMevent);
-	  SIPMevent->clear(); //TODO does this need to be clear for each hit or for each event? I think event
+  if (boardID < 2) janusevts.push_back(*SIPMevent);
+	SIPMevent->clear(); //TODO does this need to be clear for each hit or for each event? I think event
 		// Fill output tree
 		//Histo->FillTree(*SIPMeventcur);
 
-    //If we hit event end, break, account for 4 FFs after event
-    if (nbytes ==  (nbytes1 - 4 - offset)) break;
-	}
-
-  pevtfile->ignore(4);
-
+    //JANUS EVENTS NOW HAVE 7 FFs, changed right before Si22 experiment
+    //If we hit event end, break, account for 4 FFs after event ******CHANGED*********
+    //cout << dec << "nbytes " << nbytes << " offset " << offset << " inclsize " << inclsize << endl;
+  //cout << "here2" << endl;
+  if (nbytes !=  (inclsize - 7 - offset)) //Sometimes the trailer FFs won't be 7, skip for now and advance ifstream
+  {
+    pevtfile->ignore(inclsize - (nbytes + offset));
+    //return false; //Works as long as you get the correct nbytes each time
+    return true;
+  }
+  //cout << "here3" << endl;
+  
+  pevtfile->ignore(7);
+  //cout << "END OF JANUS EVT" << endl;
 	return true;
 }
 
-void janus::analyze()
+void janus::analyze(const s800_results& S800_results)
 {
-  if (janusevts.size() != 2) return;
 
+  fibmatch = false;
+
+  if (janusevts.size() != 2 || janusevts.size() > 2)
+  {
+    if (janusevts.size() > 0)
+    {
+      if (janusevts[0].GetBoardID() == 0) evt_RNOTB++;    
+      if (janusevts[0].GetBoardID() == 1) evt_BNOTR++;    
+    }    
+    return;
+  }
+
+  if (janusevts[0].GetBoardID() == janusevts[1].GetBoardID())
+  { 
+    cout << "SAME BOARD!!!" << endl;
+    abort();
+  }
+  
+
+  //cout << "Jan evt size " << janusevts.size() << endl;
   int idhorz = -1;
   int idvert = -1;
 	eventTiming ev;
 
+  //Forget why this is needed. Changes if board 1 or board 0 is the vert or horz?
   if (janusevts[0].GetBoardID() == 0)
   {
     idhorz = 1;
@@ -150,36 +208,47 @@ void janus::analyze()
     idvert = 1;
   }
 
-  Fiber->make_2d(&(janusevts[idhorz]), &(janusevts[idvert]), distance);
+  Fiber->make_2d(&(janusevts[idhorz]), &(janusevts[idvert]), distance, S800_results);
+
+  //Check for bad max fibers
+  if (Fiber->badtx == true || Fiber->badty == true) return;
+
+  fibmatch = true;
+
+  evt_BRMatch++;
 
 	//	Write histograms and tree here
   //Histo->FillMatchedTree(Fiber, redbuffevents[i], bluebuffevents[j]);
+  
+  //vert vs horz
+  //The x value comes from the vertical fiber. So does vert mean y value (horz fiber) or the ver fiber (x value)
+  
 	Histo->Fiber_ixiy->Fill(Fiber->ix, Fiber->iy);
 	Histo->Fiber_xy->Fill(Fiber->x, Fiber->y);
 
-	ev = janusevts[idvert].GetTimingEvent(Fiber->posmaxhorz);
-  if (janusevts[idhorz].GetBoardID() == 0) cout << "test here!!!!!!! " << endl;
-	Histo->tot_summary_blue->Fill(ev.pos, ev.ToTmatched);
+	ev = janusevts[idhorz].GetTimingEvent(Fiber->posmaxhorz);
+  //if (janusevts[idhorz].GetBoardID() == 1) cout << "test here!!!!!!! " << endl;
+	Histo->tot_summary_blue_matched->Fill(ev.pos, ev.ToTmatched);
 	Histo->Fiber_toax->Fill(ev.ToA);
 
-	ev = janusevts[idhorz].GetTimingEvent(Fiber->posmaxvert);
-	Histo->tot_summary_red->Fill(ev.pos, ev.ToTmatched);
+	ev = janusevts[idvert].GetTimingEvent(Fiber->posmaxvert);
+	Histo->tot_summary_red_matched->Fill(ev.pos, ev.ToTmatched);
 	Histo->Fiber_toay->Fill(ev.ToA);
 
   // Plot hit map for individual events
 	double temppos;
-	for (int k = 0; k<janusevts[idvert].GetNHits(); k++)
+	for (int k = 0; k<janusevts[idhorz].GetNHits(); k++)
   {
-		ev = janusevts[idvert].GetTimingEvent(k);
+		ev = janusevts[idhorz].GetTimingEvent(k);
 		temppos = -1*(ev.pos-0.5)*0.5 + 16; //mm
 		Histo->Fiber_totx->AddBinContent(Histo->Fiber_totx->GetXaxis()->FindBin(temppos), ev.ToTmatched);
 		Histo->Fiber_postotx->AddBinContent(Histo->Fiber_postotx->GetXaxis()->FindBin(ev.pos), ev.ToTmatched);
 		Histo->Fiber_postoax->AddBinContent(Histo->Fiber_postoax->GetXaxis()->FindBin(ev.pos), ev.ToA);
 	 }
 
-	for (int k = 0; k<janusevts[idhorz].GetNHits(); k++)
+	for (int k = 0; k<janusevts[idvert].GetNHits(); k++)
   {
-	  ev = janusevts[idhorz].GetTimingEvent(k);
+	  ev = janusevts[idvert].GetTimingEvent(k);
 		temppos = -1*(ev.pos-0.5)*0.5 + 16; //mm
 		Histo->Fiber_toty->AddBinContent(Histo->Fiber_toty->GetXaxis()->FindBin(temppos), ev.ToTmatched);
 		Histo->Fiber_postoty->AddBinContent(Histo->Fiber_postoty->GetXaxis()->FindBin(ev.pos), ev.ToTmatched);

@@ -55,33 +55,17 @@ void fiber::clear() {
  * Horizontal (red) fiber gives y position
  */
 bool fiber::make_2d(Event* horz, Event* vert, double distance,  s800_results S800_results) {
-	clear(); // set default values
+	// Set default values
+	clear();
 
-	// Set run dependent time gate. Default case is for Setting 1, but may
-	// work with other runs if tested.
-	double S800_tdiff_min;
-	double S800_tdiff_max;
-	switch (S800_results.run) {
-		case 45:
-		case 46:
-			S800_tdiff_min = 220;
-			S800_tdiff_max = 360;
-			break;
-		case 147:
-			S800_tdiff_min = 300;
-			S800_tdiff_max = 400;
-		default:
-			S800_tdiff_min = 320;
-			S800_tdiff_max = 400;
-	}
-
-// Apply front layer ToA gate, find center hit
+	// Apply front layer ToA gate, find center hit
 	eventTiming ev;
 	int mult = horz->GetNHits();
 	double maxToT = 0;
 	double maxToTalt1 = 0;
 	int posmaxhorzalt = 0;
-	double blue_toa;
+  //cout << "mult " << mult << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+  //cout << "here1" << endl;
 	for (int i = 0; i < mult; i++) {
 
 		// Find alternate max ToT hit index
@@ -90,11 +74,11 @@ bool fiber::make_2d(Event* horz, Event* vert, double distance,  s800_results S80
 			maxToTalt1 = ev.ToTmatched;
 			posmaxhorzalt = i;
 		}
-
-		// Apply time gate relative to S800 timestamp (in ns),
-		// assuming that the trigger comes from the S800
-		blue_toa = ev.ToA * 0.5;
-		if ((blue_toa < S800_tdiff_min) || (blue_toa > S800_tdiff_max) || (ev.ToTmatched < maxToT)) continue;
+		//cout << "here" << endl;
+    //TODO no time gates for now
+		//if ((ev.ToA < 650) || (ev.ToA > 740) || (ev.ToTmatched < maxToT) continue;
+		if (ev.ToTmatched < maxToT) continue;
+		//cout << "here2" << endl;
 		maxToT = ev.ToTmatched;
 		posmaxhorz = i;
 	}
@@ -103,7 +87,7 @@ bool fiber::make_2d(Event* horz, Event* vert, double distance,  s800_results S80
 		posmaxhorz = posmaxhorzalt;
 		badtx = true;
 	}
-
+  //cout << "here2" << endl;
 	// Advance declaration of variables
   double momhorz = 0;
   double momvert = 0;
@@ -130,8 +114,9 @@ bool fiber::make_2d(Event* horz, Event* vert, double distance,  s800_results S80
 		// Apply hit-wise time gate
 		ev = horz->GetTimingEvent(i);
 		tdiff = (double)(ev.ToA - maxHitBlue.ToA) * 0.5; //ns
-		tdiffx.push_back(tdiff);
-		if (tdiff < 0. || tdiff > 20.) continue;
+		tdiffx.push_back(tdiff);  
+    //TODO no hit wise-time gate
+		//if (tdiff < 0. || tdiff > 15.) continue;
 
 		// Calculate values
 		PH = max(ev.ToTmatched - threshhorz, 0.);
@@ -161,7 +146,8 @@ bool fiber::make_2d(Event* horz, Event* vert, double distance,  s800_results S80
 		// Apply hit-wise time gate
 		tdiff = (double)(ev.ToA - maxHitBlue.ToA) * 0.5 + tstampdiff; //ns
 		tdiffy.push_back(tdiff);
-		if (tdiff < -20. || tdiff > 20.) continue;
+    //TODO no hit wise-time gate
+		//if (tdiff < 230. || tdiff > 270.) continue;
 
 		// Get index of max ToT hit
 		if (ev.ToTmatched > maxToT) {

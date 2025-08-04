@@ -29,7 +29,6 @@ int main(int argc, char* argv[])
 
   //string suffix = "temp2";
   string suffix = ""; //TODO no suffix for now
-  int setting = 1;
 
   //TODO choose a S800 setting. Defines gobbi distance and target thickness
   /*if (argc > 1)
@@ -44,8 +43,6 @@ int main(int argc, char* argv[])
     else
       abort();
   }*/
-
-  setting = 0; //just default 0 for now
 
   //TODO also useful but needs to be commented out
   //open file with run numbers to sort
@@ -77,10 +74,17 @@ int main(int argc, char* argv[])
   int unsigned words;
   int unsigned type;
   
+  int evt_counter = 0;
   int physicsEvent = 0;
   int physicsEventGood = 0;
   int physicsEventCounter = 0;
   int scalerBuffer = 0;
+  int S800frag = 0;
+  int VMEfrag = 0;
+  int Janusfrag = 0;
+  int onefrag = 0;
+  int twofrag = 0;
+  int threefrag = 0;
   int Npauses = 0;
   int Nresumes = 0;
   int runno = 0;
@@ -90,6 +94,33 @@ int main(int argc, char* argv[])
   int NGoodSecondary = 0;
   int totalRuntime = 0;
 
+  int S800multevents = 0;
+  int Janusmultevents = 0;
+  int VMEmultevents = 0;
+  
+  //Breaks down S800 coincidence evts into different parts
+  int S800Coinc_evt = 0; //Total number of S800 coincidence events
+  int S800Coinc_VME = 0; //S800 with VME, no fibers
+  int S800Coinc_VME_Si = 0; //S800 with VME, no fibers, only silicons
+  int S800Coinc_VME_CsI = 0; //S800 with VME, no fibers, only CsI
+  int S800Coinc_VME_Both = 0; //S800 with VME and Si/CsI, not solution gates
+  int S800Coinc_VME_Complete = 0; //S800 with VME, no fibers, Si and CsI
+  int S800Coinc_1Fiber = 0; //S800 with 1 fiber
+  int S800Coinc_2Fiber = 0; //S800 with 2 fibers, not matched
+  int S800Coinc_2plusFiber = 0; //S800 with more than 2 boards, garbage
+  int S800Coinc_Fibermatch = 0; //S800 with 2 matched fibers
+  int S800Coinc_VME_1Fiber = 0; //S800, VME, 1 fiber
+  int S800Coinc_VME_2Fiber = 0; //S800 VME, 2 fibers, not matched
+  int S800Coinc_VME_2plusFiber = 0; //S800 with VME and more than 2 boards, garbage
+  // Full event includes S800, VME, and matched fibers
+  int S800Coinc_Complete = 0;
+  int S800Coinc_Complete_Si23 = 0;
+  int S800Coinc_Complete_Si23_Mg20_2p = 0;
+  int S800Coinc_Complete_Si23_Si22_p = 0;
+  int S800Coinc_Complete_Si23_Si23_p = 0;
+
+  int S800Coinc_Complete_Si23_Ne17_3p = 0;
+  int S800Coinc_Complete_Si23_Ne18_3p = 0;
   
   //check if this file exists
   //if (runFile.is_open() == 0 )
@@ -112,6 +143,12 @@ int main(int argc, char* argv[])
 
   int firstrunnum;
 
+  int setting = 1; //Default value of setting 1
+
+  //For switching the distance of Gobbi to target for setting 1
+  bool setting1_og = true;
+  bool setting1_a = false;
+
   // default case, get run numbers from numbers.beam
   if (argc == 1)
   {
@@ -126,7 +163,7 @@ int main(int argc, char* argv[])
     runFile.clear(); //clear bad state
     runFile.seekg(0); //return to start
   }
-
+  
   else if (argc == 2) // check to see if the argument if a file and if so get run numbers from it.
   {
     runFile.open(argv[argcounter]);
@@ -134,9 +171,23 @@ int main(int argc, char* argv[])
     {
       argc = 1;
       cout << "using runs from " << argv[argcounter] << endl;
+
+      string numbersname = argv[argcounter];
+
+      //Choose setting based on file
+      if (numbersname.compare("numbers.set1") == 0) setting = 1;
+      if (numbersname.compare("numbers.set2") == 0) setting = 2;
+      if (numbersname.compare("numbers.set3") == 0) setting = 3;
+
     }     
     firstrunnum = atoi(argv[argcounter]);
   } 
+
+
+  //Print out setting
+  cout << "S800 Setting: " << setting << endl;
+
+
   TargThick->SetThick(runnum);
 
   det Det(Histo_sort, Histo_read, setting);
@@ -144,8 +195,8 @@ int main(int argc, char* argv[])
   //Set the sourceID for the S800 (normally 2) and secondary DAQ
   //TODO need correct ID's for HINP, CAESAR, S800, and Janus
   Det.SiID = 1;
-  Det.JanusID = 2;
-  Det.S800ID = 3;
+  Det.JanusID = 3;
+  Det.S800ID = 2;
 
   int runcount = 0;
   for (;;)  //loop over run numbers
@@ -168,7 +219,7 @@ int main(int argc, char* argv[])
         argcounter++;
       }
     }
-
+    
 
     //check to see if at end of file
     if (runFile.eof())break;
@@ -247,8 +298,13 @@ int main(int argc, char* argv[])
 
       string directory = Form("");
 
-      outstring << directory << "data/run" << number <<"/run-" << setfill('0') << setw(4) << number;
+      //outstring << directory << "/user/e21006/stagearea/merged/experiment/run" << number <<"/run-" << setfill('0') << setw(4) << number;
+      //outstring << directory << "/user/e21006/stagearea/standalone/experiment/run" << number <<"/run-" << setfill('0') << setw(4) << number;
+      //outstring << directory << "/mnt/rawdata/e21006/merged/experiment/run" << number <<"/run-" << setfill('0') << setw(4) << number;
 //        outstring << directory << "/run-" << setfill('0') << setw(4) << number;
+
+      //For data on Neutron
+      outstring << directory << "/data2/Si22_nov2024/run" << number <<"/run-" << setfill('0') << setw(4) << number;
 
       if (iExtra == 0)
         outstring<<"-00.evt";
@@ -282,11 +338,38 @@ int main(int argc, char* argv[])
       //TODO target distance and thickness will vary across S800 settings
 
       //Set the distance for the Si and Fibers for different settings
-      float SiDistance = 40.05;//*0.99;
+      float SiDistance = 55.2;//*0.99;
+      float TargetThick = 0;
+      if (setting == 0) //Gobbi further from target before 216, setting 1
+      {
+        TargetThick = 97.77768; 
+        SiDistance = 55.2;
+      }
+      if (setting == 1 && number < 216) //Gobbi further from target before 216, setting 1
+      {
+        TargetThick = 97.77768;//99.79; 
+        SiDistance = 55.383;//55.2;
+      }
+      if (setting == 1 && number >= 216) //Gobbi closer to target after 216, setting 1a
+      {
+        TargetThick = 97.77768; 
+        SiDistance = 43.896;
+      }
+      if (setting == 2)
+      {
+        TargetThick = 99.79*2; 
+        SiDistance = 34.8;
+      }
+      if (setting == 3)
+      {
+        TargetThick = 99.79*4; 
+        SiDistance = 50.;
+      }
+
+			float FiberDistance = SiDistance + 10.557;//10.151+2.664; //Add some constant distance for Fibers, cm. Approximately assume that Si start at Gobbi cart.
       //99.79 mg/cm2 -- 0.54 mm target
       //91.18456 from 0.497 mm thick Be target using rigidity measurement
       //188 mg/cm2 -- 1mm target
-      float TargetThick = 91.8456; //99.79; 
       // if(number <= 60)
       //   {
       //     SiDistance = 33.13; //cm
@@ -298,16 +381,50 @@ int main(int argc, char* argv[])
       //     TargetThick = 99.79;
       //   }
 
+      //print out distances for each run
+      cout << "Run " << number << " Si dist (cm): " << SiDistance << " Fib dist (cm): " << FiberDistance << endl; 
+
       //TODO verify that targ dist and thick work. Also set fiber dist
-      Det.Gobbi->SetTarget(SiDistance,TargetThick);
+      Det.Gobbi->SetTarget(SiDistance,TargetThick); //Uses cm
+			Det.Janus->SetTarget(FiberDistance); //Janus uses cm for angle
 
       //Det.Hira->XY_mon->setDistance(SiDistance);
       
       ////////////////////////////////////////////////////////////////////////////////////////
-      
-      //for(int i=0;i<5;i++)  // loop over items in a evtfile
+  
+      //Performs check of the target, aborts if not good
+      if (TargetThick <= 0)
+      {
+        cout << "Target must be > 0 " << endl;
+        abort();
+      }
+
+      //Performs check of Janus target, aborts if not good
+      if (Det.Janus->dist_pub <= 0)
+      {
+        cout << "Janus target must be > 0 " << endl;
+        abort();
+      }
+  
+      //for(int i=0;i<500000;i++)  // loop over items in a evtfile
       for(;;)      
       {
+      evt_counter++;
+      //cout << "EVT START" << endl;
+      //cout << evt_counter << endl;
+      
+      int S800_here = 0;
+      int VME_here = 0;
+      int Janus_here = 0;
+
+      int S800_mult = 0;
+      int Janus_mult = 0;
+      int VME_mult = 0;
+
+      unsigned long long FragHeadTStamp = 0;
+      int64_t S800TStamp = 0;
+      int64_t VMETStamp = 0;
+      int64_t JanusTStamp = 0;
 
       /////////////////////////////////////////////////////////////////////////////////////
       //Ring items have the following structure
@@ -361,14 +478,30 @@ int main(int argc, char* argv[])
           break;
         }
 
-        int nbytes = hBuffer[0];
-        int nbytes2 = hBuffer[1];
-        int type = hBuffer[2];
-        int type2 = hBuffer[3];
+        unsigned short nbytes1 = hBuffer[0];
+        unsigned short nbytes2 = hBuffer[1];
+        unsigned short type1 = hBuffer[2];
+        unsigned short type2 = hBuffer[3];
 
-        //cout << "here " << hex << nbytes << " " << nbytes2 << " " << type << " " << type2 << dec << endl;
+        //cout << "event header " << hex << nbytes1 << " " << nbytes2 << " " << type1 << " " << type2 << " " << dec << evt_counter << endl;
+       
+        unsigned int nbytes = nbytes1 + (nbytes2 << 16);
+        
+        unsigned int type = type1 + (type2 << 16);
+
+         
+        //Skip massive events, likely smashing multiple events together
+        //if (nbytes > 4000)
+        //{
+        //  cout << "Skip massive event" << endl;
+        //  evtfile.ignore(nbytes - hBufferBytes);
+        //  continue;
+        //}
+       
         int offset = 0;
         offset = 8;
+ 
+        if (type == 30) physicsEventCounter++;
  
         int dBufferBytes = nbytes - 8; //skipping the inclusive size and data type
         int dBufferWords = dBufferBytes/2; //calculating 16 bit words from bytes
@@ -394,12 +527,16 @@ int main(int argc, char* argv[])
         if(BHsize==20)
         {
           evtfile.ignore(8);
+          //int64_t evtTstamp_arr[1];
+          //evtfile.read((char*)evtTstamp_arr,16);
+          //eventTstamp = evtTstamp_arr[0];
+          
           //TODO skipping the timestamp for now -- need to come back to this later Johnathan
           unsigned short eventsource_arr[4];
           evtfile.read((char*)eventsource_arr,8);
-          eventsourceID = eventsource_arr[0];
+          eventsourceID = eventsource_arr[2];
 
-          eventBarrierType = eventsource_arr[2];
+          eventBarrierType = eventsource_arr[0];
 
           offset +=16;
 
@@ -411,7 +548,7 @@ int main(int argc, char* argv[])
           //Buffers with no body header, for use with NSCLDAQ older than 11.0
         //}
 
-        int64_t fragmentTimestamp[5]={0};
+        unsigned short fragmentTimestamp[4]={0};
         int32_t fragmentsourceID[5] ={-1};
         int32_t fragmentsize[5] ={0};
         int32_t fragmentBarrierType[5] = {0};
@@ -424,19 +561,24 @@ int main(int argc, char* argv[])
         bool foundS800 = false;
         bool foundSecondary = false;
         Det.Reset();
-
+        //if (evt_counter > 3 && evt_counter < 3000)
+        //{
+          //evtfile.ignore(nbytes-offset);
+          //continue;
+        //} 
         while (offset != nbytes)
         {
           if (type == 1)
           {
-            evtfile.ignore(4);
-            offset+=4;
             unsigned short runno_arr[1];
             evtfile.read((char*)runno_arr,2);
-            runno = runno_arr[0];   
-            cout << "run number = " << runno << endl;
-            //Ignore the rest of this event
+            runno = runno_arr[0]; 
             offset+=2;
+
+            evtfile.ignore(4);
+            offset+=4;
+            cout << "run number = " << runno*1 << endl;
+            //Ignore the rest of this event
             evtfile.ignore(nbytes - offset);
             offset = nbytes;
           }
@@ -466,7 +608,15 @@ int main(int argc, char* argv[])
             }      
             int nwordsring = BuiltSize;    
             //Now to read the fragment header
-            evtfile.ignore(8); //Skipping the time stamp for now JP
+            evtfile.read((char*)fragmentTimestamp,8);
+            //for (int j=0;j<4;j++) cout << hex << fragmentTimestamp[j] << " ";
+            //cout << endl;
+            FragHeadTStamp = (long long)fragmentTimestamp[0] + ((long long)fragmentTimestamp[1] << 16) + ((long long)fragmentTimestamp[2] << 32) + ((long long)fragmentTimestamp[3] << 48);
+            //cout << "Tstamp parts " << hex << fragmentTimestamp[0] << " " << fragmentTimestamp[1] << " " << fragmentTimestamp[2] << " " << fragmentTimestamp[3] << dec << endl;
+            //cout << "FratHeadTStamp " << dec << FragHeadTStamp << endl;
+
+            //evtfile.ignore(8); //Skipping the time stamp for now JP
+            
             unsigned int fragment_arr[3];
             evtfile.read((char*)fragment_arr,12);
             fragmentsourceID[nFragment]=fragment_arr[0];
@@ -477,7 +627,28 @@ int main(int argc, char* argv[])
             fragmentBarrierType[nFragment] = fragment_arr[2];
             offset += 20;
 
-            //cout << "here " << hex << fragmentsourceID[nFragment] << " " << fragmentsize[nFragment] << " " << fragmentBarrierType[nFragment] << dec << endl;
+           // cout << "here " << hex << fragmentsourceID[nFragment] << " " << fragmentsize[nFragment] << " " << fragmentBarrierType[nFragment] << dec << endl;
+
+            //if (fragmentBarrierType[nFragment] != 0 || fragmentBarrierType[nFragment] != 0)
+            //{
+              //evtfile.ignore(fragsize+4);
+              //offset+=fragsize+4;
+              //continue;
+            //}
+
+            if (FragHeadTStamp > 104467440700)
+            {
+              cout << "Crazy large timestamp - skip " << endl;
+              cout << "Timestamp: " << FragHeadTStamp << endl;
+            }
+
+            if (FragHeadTStamp == 0 || FragHeadTStamp < 100) //Also skip tiny timestamps that don't make sense
+            {
+              cout << "Janus delay causes strange first event with 0 t stamp - skip" << endl;
+              evtfile.ignore(fragsize);
+              offset += fragsize;
+              continue;
+            } 
 
             //Ignore repeated header
             evtfile.ignore(28);
@@ -490,18 +661,34 @@ int main(int argc, char* argv[])
             //offset+=fragmentsize[nFragment]/2; //Skipping the #words of the payload;
             //point +=14;
 
-            if (physicsEvent%5000 == 0) 
-              cout << '\xd'<< physicsEvent << flush;
+            //if (physicsEvent%100000 == 0) 
+              //cout << '\xd'<< physicsEvent << flush;
             physicsEvent++;
             
             //Det.S800ID == 2, Det.SiID == 1
             if(fragmentsourceID[nFragment] == Det.S800ID)
             {
               NS800++;
+              S800frag++;
+              S800_here = 1;
+              S800TStamp = FragHeadTStamp;
+              S800_mult++;
             }
             else if(fragmentsourceID[nFragment] == Det.SiID)
             {
               NSecondary++;
+              VMEfrag++;
+              VME_here = 1;
+              VMETStamp = FragHeadTStamp;
+              VME_mult++;
+            }
+            else if(fragmentsourceID[nFragment] == Det.JanusID)
+            {
+              if (Janus_here == 0) Janusfrag++;
+              NSecondary++;
+              Janus_here = 1;
+              JanusTStamp = FragHeadTStamp;
+              Janus_mult++;
             }
             //TODO turn off unpacking till header works
             bool stat = Det.unpack(&evtfile,runno,fragmentsourceID[nFragment], fragsize);
@@ -519,6 +706,7 @@ int main(int argc, char* argv[])
                 foundSecondary = true;
                 NGoodSecondary++;
                 physicsEventGood++;
+
               }
               else if(fragmentsourceID[nFragment] == Det.JanusID)
               {
@@ -539,13 +727,13 @@ int main(int argc, char* argv[])
           }//end type == 30
           else if (type == 31)
           {
-            physicsEventCounter++;
             evtfile.ignore(nbytes - offset);
             offset = nbytes;
           }
           else if (type == 2)
           {
             endOfRun = true;
+            cout << "End of run block" << endl;
             break;
           }
           else if (type == 20)
@@ -553,6 +741,7 @@ int main(int argc, char* argv[])
             scalerBuffer++;
             evtfile.ignore(nbytes - offset);
             offset = nbytes;
+          
           }
           else if (type == 3)
           {
@@ -580,14 +769,101 @@ int main(int argc, char* argv[])
           nFragment++;
         } //end loop over ring item
 
+        if (evt_counter%100000 == 0) 
+          cout << '\xd'<< evt_counter << flush;
 
-
-
-        if (foundS800 || foundSecondary) 
+        //Different if statements
+        //If sorting real runs, only analyze those with S800, VME, and 2 Janus boards
+        //Must be turned off for calibrations to work
+        //if (foundS800 || foundSecondary) 
+        if (foundS800 && foundSecondary && Janus_mult == 2)
         {
           //here we read trigger coin and add
           //TODO turn off analysis until unpacking works
           Det.analyze(physicsEvent, runno);
+        }
+        else { //Make sure Janus gets cleared
+          Det.Janus->janusevts.clear();
+	        Det.Janus->Histo->clear();
+        }
+        
+        
+        if (S800_here == 0 && Janus_here == 0 && VME_here == 1)
+        {
+          onefrag += 1;
+        }
+        if (S800_here == 0 && Janus_here == 1 && VME_here == 0)
+        {
+          onefrag += 1;
+        }
+        if (S800_here == 1 && Janus_here == 0 && VME_here == 0)
+        {
+          onefrag += 1;
+        }
+        if (S800_here == 0 && Janus_here == 1 && VME_here == 1)
+        {
+          twofrag += 1;
+        }
+        if (S800_here == 1 && VME_here == 1 && Janus_here == 0)
+        {
+          twofrag += 1;
+          if (Det.s800->Trig.registr & 2) S800Coinc_VME++;
+          if (Det.Gobbi->S800coinc_CsI == true && Det.s800->Trig.registr & 2) S800Coinc_VME_CsI++;
+          if (Det.Gobbi->S800coinc_Si == true && Det.s800->Trig.registr & 2) S800Coinc_VME_Si++;
+          if (Det.Gobbi->S800coinc_both == true && Det.s800->Trig.registr & 2) S800Coinc_VME_Both++;
+          if (Det.Gobbi->S800_complete == true && Det.s800->Trig.registr & 2) S800Coinc_VME_Complete++;
+        }
+        if (S800_here == 1 && Janus_here == 1 && VME_here == 0)
+        {
+          twofrag += 1;
+          if (Janus_mult == 1 && Det.s800->Trig.registr & 2) S800Coinc_1Fiber++;
+          if (Janus_mult == 2 && Det.Janus->fibmatch == false && Det.s800->Trig.registr & 2) S800Coinc_2Fiber++;
+          if (Janus_mult > 2 && Det.s800->Trig.registr & 2) S800Coinc_2plusFiber++;
+          if (Janus_mult == 2 && Det.Janus->fibmatch == true && Det.s800->Trig.registr & 2) S800Coinc_Fibermatch++;
+        }
+        if (S800_here == 1 && Janus_here == 1 && VME_here == 1)
+        {
+          threefrag += 1;
+          if (Janus_mult == 1 && Det.s800->Trig.registr & 2) S800Coinc_VME_1Fiber++;
+          if (Janus_mult == 2 && Det.Janus->fibmatch == false && Det.s800->Trig.registr & 2) S800Coinc_VME_2Fiber++;
+          if (Janus_mult > 2 && Det.s800->Trig.registr & 2) S800Coinc_VME_2plusFiber++;
+
+          if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true) S800Coinc_Complete++;
+          if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.s800->beam_pid->Z == 14 && Det.s800->beam_pid->A == 23) S800Coinc_Complete_Si23++;
+
+          if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.Si23_Mg20_2p_flag == true) S800Coinc_Complete_Si23_Mg20_2p++;
+
+          if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.Si23_Si22_p_flag == true) S800Coinc_Complete_Si23_Si22_p++;
+
+
+	        if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.Si23_Si23_p_flag == true) S800Coinc_Complete_Si23_Si23_p++;
+
+	        if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.Ne17_3p_flag == true) S800Coinc_Complete_Si23_Ne17_3p++;
+
+	        if (Det.Gobbi->S800_complete == true  && Det.s800->Trig.registr & 2 && Det.Janus->fibmatch == true && Det.Ne18_3p_flag == true) S800Coinc_Complete_Si23_Ne18_3p++;
+
+        }
+
+
+        
+        //Plots the deltaT for each fragment relative to another
+        if (VMETStamp != 0 && JanusTStamp != 0) Histo_sort->DeltaT_VME_Janus->Fill(VMETStamp - JanusTStamp);
+        if (VMETStamp != 0 && S800TStamp != 0) Histo_sort->DeltaT_VME_S800->Fill(VMETStamp - S800TStamp);
+        if (S800TStamp != 0 && JanusTStamp != 0) Histo_sort->DeltaT_S800_Janus->Fill(S800TStamp - JanusTStamp);
+
+        if (VMETStamp != 0 && JanusTStamp != 0) Histo_sort->DeltaT_VME_Janus_vsEvtCnt->Fill(physicsEventCounter,VMETStamp - JanusTStamp);
+        if (VMETStamp != 0 && S800TStamp != 0) Histo_sort->DeltaT_VME_S800_vsEvtCnt->Fill(physicsEventCounter,VMETStamp - S800TStamp);
+        if (S800TStamp != 0 && JanusTStamp != 0) Histo_sort->DeltaT_S800_Janus_vsEvtCnt->Fill(physicsEventCounter,S800TStamp - JanusTStamp);
+
+        if (S800_mult > 1) S800multevents++;
+        if (VME_mult > 1) VMEmultevents++;
+        if (Janus_mult > 1) Janusmultevents++;
+        
+
+        //Break down the coincidence events into source IDs and other efficiencies
+        if (Det.s800->Trig.registr & 2)
+        {
+          S800Coinc_evt++;
         }
 
       } //end loop over items in a evtfile
@@ -614,48 +890,73 @@ int main(int argc, char* argv[])
   cout << "good residues = " << Det.Nresidue << endl;
   cout << "Bad residues = " << Det.Nbadresidue << endl;
 
-  //cout << "Ar33_37Cabeam = " << Det.Ar33_37Cabeam << endl;
-  //cout << "Ar33_36Kbeam = " << Det.Ar33_36Kbeam << endl;
-
-  cout << "number of s800 singles = " << Det.N_s800_singles << endl;
-  cout << "number of coincidences = " << Det.N_coin << endl;
-  cout << "number of single event = " << Det.N_singles << endl;
-
-/*
-  Histo_sort->tree->Fill();
-  cout << "number of s800 singles = " << Det.N_s800_singles << endl;
-  cout << "number of coincidences = " << Det.N_coin << endl;
-  cout << "number of single event = " << Det.N_singles << endl;
-  cout << "Num of 37Ca beam = " << Det.NCa37beam << endl;
-  cout << "Num of 37Ca beam w/ 35K residue = " << Det.beam_residue << endl; 
-  cout << "Num of 37Ca beam, 35K residue, fiber= " << Det.beam_residue_fiber << endl;
-  cout << "Num of 37Ca beam, 35K residue, NOfiber= " << Det.beam_residue_nofiber << "  "
-       << Det.beam_residue_nofiber/(Det.beam_residue_nofiber + Det.beam_residue_fiber)
-       << "%" << endl;
-  cout << "Num of 37Ca beam, 35K residue, proton= " << Det.beam_residue_RCsoln << endl;
-  cout << "Num of 37Ca beam, 35K residue, NOproton= " << Det.beam_residue_noRCsoln
-       << Det.beam_residue_noRCsoln/(Det.beam_residue_noRCsoln + Det.beam_residue_RCsoln)
-       << "%" << endl;
-  cout << "Num of 37Ca beam, 35K residue, proton, fiber= " << Det.beam_residue_RCsoln_fiber << endl;
-  cout << "Num of 37Ca beam, 35K residue, proton, NOfiber= " << Det.beam_residue_RCsoln_nofiber << endl;
+  //cout << "number of s800 singles = " << Det.N_s800_singles << endl;
+  //cout << "number of coincidences = " << Det.N_coin << endl;
+  //cout << "number of single event = " << Det.N_singles << endl;
 
 
-  cout << "Num of 35K residue (no requirement on beam) = " << Det.NK35residue << endl;
-  cout << "Num of 35K with fiber (no requirement on beam) = " << Det.NK35_withfiber << endl;
+  cout << "Number of different sources" << endl;
+  cout << "Num S800 " << S800frag << endl;
+  cout << "Num VME " << VMEfrag << endl;
+  cout << "Num Janus " << Janusfrag << endl;
+  cout << "Number of sources in events " << "    Total events    " << evt_counter << endl;
+  cout << "Num one source " << onefrag << endl;
+  cout << "Num two source " << twofrag << endl;
+  cout << "Num three source " << threefrag << endl;
+  cout << "Add three sources " << onefrag + twofrag + threefrag << endl;
 
-  cout << "S800 events that we unpacked correctly = " << (float)NGoodS800/(float)NS800*100. << "%" <<endl;
-  cout << "RingCounter Events good " << NGoodSecondary << " and unpacked"<< NSecondary << endl;
-  cout << "RingCounter events that we unpacked correctly = " << (float)NGoodSecondary/(float)NSecondary*100. << "%" <<endl;
+  cout << "Total SRS events: " << Det.s800->SRStot << endl;
+  cout << "Good SRS events: " << Det.s800->SRSgood << endl;
+  cout << "Bad SRS events: " << Det.s800->SRSbad << endl;
 
-  cout << "Number of good HiRA events = " << Det.Hira->NHira << endl;
-  cout << "Number of good fiber events = " << Det.Hira->Nfiber << endl;
-  cout << "Number of good S800 events = " << Det.NS800 << endl;
+  cout << "Total num of S800 " << NS800 << endl;
+  cout << "Num of huge S800 events: " << Det.s800->S800Huge << endl;
+  cout << "Total num of protons " << Det.Gobbi->num_protons << endl;
 
-  cout << "Number of events with neighbor pie issue: " << Det.Hira->RingCounter->K35multipiecounter << endl;
+  cout << "Matched Blue AND Red Janus: " << Det.Janus->evt_BRMatch << "  %" << 100*(float)Det.Janus->evt_BRMatch / (float)Janusfrag<< endl;
+  cout << "Janus Blue NOT Red: " << Det.Janus->evt_BNOTR  << "  %" << 100*(float)Det.Janus->evt_BNOTR / (float)Janusfrag << endl;
+  cout << "Matched Red NOT Blue Janus: " << Det.Janus->evt_RNOTB << "  %" << 100*(float)Det.Janus->evt_RNOTB / (float)Janusfrag << endl;
 
-  //cout << "Number of S28 found = " << Det.NS28 <<endl;
-  //cout << "Number of S28 found with a good fiber signal = " << Det.NS28_withfiber << endl;
-*/
+  cout << "Num events with mult S800 " << S800multevents << endl;
+  cout << "Num events with mult VME " << VMEmultevents << endl;
+  cout << "Num events with mult Janus " << Janusmultevents << endl;
+
+  cout << "***************************************************************" << endl;
+  cout << "               S800 coincidence event breakdown                " << endl;
+  cout << "Total S800 coincidence evts: " << S800Coinc_evt << endl;
+  cout << "S800 coincidence with just VME total: " << S800Coinc_VME << "   %   " << (float)S800Coinc_VME/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just VME Si: " << S800Coinc_VME_Si << "   %   " << (float)S800Coinc_VME_Si/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just VME CsI: " << S800Coinc_VME_CsI << "   %   " << (float)S800Coinc_VME_CsI/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just VME and Si/CsI: " << S800Coinc_VME_Both << "   %   " << (float)S800Coinc_VME_Both/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just complete VME: " << S800Coinc_VME_Complete << "   %   " << (float)S800Coinc_VME_Complete/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just 1 fiber board: " << S800Coinc_1Fiber << "   %   " << (float)S800Coinc_1Fiber/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just 2, unmatched fiber boards: " << S800Coinc_2Fiber << "   %   " << (float)S800Coinc_2Fiber/S800Coinc_evt << endl;
+  cout << "S800 coincidence with only more than 2 fiber boards (junk): " << S800Coinc_2plusFiber << "   %   " << (float)S800Coinc_2plusFiber/S800Coinc_evt << endl;
+  cout << "S800 coincidence with just matched fiber boards: " << S800Coinc_Fibermatch << "   %   " << (float)S800Coinc_Fibermatch/S800Coinc_evt << endl;
+  cout << "S800 coincidence with VME and 1 fiber board: " << S800Coinc_VME_1Fiber << "   %   " << (float)S800Coinc_VME_1Fiber/S800Coinc_evt << endl;
+  cout << "S800 coincidence with VME and 2 fiber boards, unmatched: " << S800Coinc_VME_2Fiber << "   %   " << (float)S800Coinc_VME_2Fiber/S800Coinc_evt << endl;
+  cout << "S800 coincidence with VME and 3 fiber boards (junk): " << S800Coinc_VME_2plusFiber << "   %   " << (float)S800Coinc_VME_2plusFiber/S800Coinc_evt << endl;
+  cout << "Complete S800 coincidence events : " << S800Coinc_Complete << "   %   " << (float)S800Coinc_Complete/S800Coinc_evt << endl;
+  cout << "Complete S800 coincidence events with Si-23 : " << S800Coinc_Complete_Si23 << "   %   " << (float)S800Coinc_Complete_Si23/S800Coinc_evt << endl;
+  cout << "Total number of Si23 beam : " << Det.N_coin_Si23 << "   %   " << endl;
+  cout << "Total number of Si23 beam + 1p : " << Det.N_coin_Si23_1p << "   %   " << endl;
+  cout << "Total number of Si23 beam + 2p : " << Det.N_coin_Si23_2p << "   %   " << endl;
+  cout << "Total number of Si23 beam + 3p : " << Det.N_coin_Si23_3p << "   %   " << endl;
+  cout << "Total number of Si23 beam + Mg20 : " << Det.N_coin_Si23_Mg20 << "   %   " << endl;
+  cout << "Total number of Si23 beam + 1p + Mg20 : " << Det.N_coin_Si23_Mg20_1p << "   %   " << endl;
+  cout << "Total number of Si23 beam + 2p + Mg20 : " << Det.N_coin_Si23_Mg20_2p << "   %   " << endl;
+  cout << "Total number of Si23 beam + 2p + Mg20 + Janus : " << S800Coinc_Complete_Si23_Mg20_2p << "   %   " << (float)S800Coinc_Complete_Si23_Mg20_2p/S800Coinc_evt << endl; 
+  cout << "Total number of Si23 beam + p + Si22 : " << Det.N_coin_Si22_1p << "   %   " << (float)Det.N_coin_Si22_1p/S800Coinc_evt << endl;
+  cout << "Total number of Si23 beam + p + Si22 + Janus : " << S800Coinc_Complete_Si23_Si22_p << "   %   " << (float)S800Coinc_Complete_Si23_Si22_p/S800Coinc_evt << endl;
+    cout << "Total number of Si23 beam + p + Si23 + Janus : " << S800Coinc_Complete_Si23_Si23_p << "   %   " << (float)S800Coinc_Complete_Si23_Si23_p/S800Coinc_evt << endl; 
+  cout << "Total number of Si23 beam + 3p + Ne17 : " << Det.N_coin_Ne17_3p << "   %   " << (float)Det.N_coin_Ne17_3p/S800Coinc_evt << endl;
+  cout << "Total number of Si23 beam + 3p + Ne17 + Janus : " << S800Coinc_Complete_Si23_Ne17_3p << "   %   " << (float)S800Coinc_Complete_Si23_Ne17_3p/S800Coinc_evt << endl;
+  cout << "Total number of Si23 beam + 3p + Ne18 : " << Det.N_coin_Ne18_3p << "   %   " << (float)Det.N_coin_Ne18_3p/S800Coinc_evt << endl;
+  cout << "Total number of Si23 beam + 3p + Ne18 + Janus : " << S800Coinc_Complete_Si23_Ne18_3p << "   %   " << (float)S800Coinc_Complete_Si23_Ne18_3p/S800Coinc_evt << endl;
+  cout << "***************************************************************" << endl;
+
+  
+  //Histo_sort->tree->Fill();
 
   Histo_sort->write(); // this forces the histrograms to be read out to file
   Histo_read->write();
@@ -664,7 +965,7 @@ int main(int argc, char* argv[])
   t = clock() - t;
   cout << "run time: " << (float)t/CLOCKS_PER_SEC/60 << " min" << endl;
 
-  int roll = rand() % (20 - 1 + 1) + 1;
+  /*int roll = rand() % (20 - 1 + 1) + 1;
   string line,line2;
   line = R"(          _-_.      )";
   cout << line << endl;
@@ -695,7 +996,17 @@ int main(int argc, char* argv[])
   line = R"(        `-!'        )";
   cout << line << endl;
   if (roll == 20) { cout << "Nat 20!" << endl;}
-  else if (roll == 1) { cout << "Nat 1 :(" << endl;}
+  else if (roll == 1) { cout << "Nat 1 :(" << endl;}*/
+
+	cout <<    "             ,,__					"	<< endl;
+	cout <<    "    ..  ..   / o._) 	  ____       _     _     _      "	<< endl;                 
+	cout <<    "   /--'/--\\  \\-'||  	 / ___| ___ | |__ | |__ (_)     "	<< endl;            
+	cout <<    "  /        \\_/ / |  	| |  _ / _ \\|  _ \\|  _ \\| |  "	<< endl;            
+	cout <<    ".'\\  \\__\\  __.'.' 	| |_| | (_) | |_) | |_) | |     "	<< endl;       
+	cout <<    "  )\\ |  )\\ |        	 \\____|\\___/|____/|____/|_|   "	<< endl;
+	cout <<    " // \\\\ // \\\\					"	<< endl;
+	cout <<    "||_  \\\\|_  \\\\_      	"	<< endl;       
+	cout <<    "'--' '--'' '--'						"	<< endl;
 
   return 0;
 

@@ -34,10 +34,37 @@ class correl2
   parType H3;
   parType He3;
   parType alpha;
-
+  //Carbon isotopes
+  parType C11;
+  parType C12;
+  //Nitrogen isotopes
+  parType N13;
+  parType N14;
+  //Oxygen isotopes
+  parType O14;
+  parType O15;
+  parType O16;
+  //Fluorine isotopes
+  parType F17;
+  parType F18;
+  //Neon isotopes
+  parType Ne17;
+  parType Ne18;
+  parType Ne19;
+  parType Ne20;
+  //Sodium isotopes
+  parType Na20;
+  parType Na21;
   //Magnesium isotopes
   parType Mg20;
+  parType Mg21;
+  parType Mg22;
+  //Aluminum isotopes
+  parType Al22;
+  parType Al23;
   //Silicon isotopes
+  parType Si24;
+  parType Si23;
   parType Si22;
   parType Si28;
   //Phosphorus isotopes

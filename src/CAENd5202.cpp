@@ -89,20 +89,68 @@ long Event::ReadEventFromStream(ifstream *pfs, double* redgains, double* bluegai
   char peaker[peaksize];
   pfs->read((char*)peaker, peaksize);
   char* pbuf = peaker;
+  char* pig = pbuf;
+  //cout << "peaker buffer" << endl;
+  //for (int i = 0; i<peaksize; i++)
+  //{
+    //cout << hex << (*pig)*1 << " ";
+   //pig++;
+  //}
+  //cout << endl;
+  //cout << "end of peaker buffer" << endl;
+  
+  
 	unsigned short eventSize;
+	//cout << "pre set val" << endl;
   set_val(eventSize, pbuf);
-
+	//cout << "1,   eventSize " << eventSize << endl;
   // Create the buffer (size 2 less because we already read the first part)
   char buf[eventSize-2];
   pfs->read((char*)buf, eventSize-2);
   pbuf = buf;
+  pig = pbuf;
+  
+  //cout << "current buffer" << endl;
+  //for (int i = 0; i<min(eventSize-2,100); i++)
+  //{
+    //cout << hex << (*pig)*1 << dec << " ";
+    //pig++;
+  //}
+ // cout << endl;
+  //cout << "end of buffer" << endl;
 
   set_val(boardID, pbuf);
+  	//cout << "2" << endl;
   set_val(timeStamp, pbuf);
+  	//cout << "3" << endl;
   set_val(NHits, pbuf);
+  	//cout << "4" << endl;
+
+  //cout << "b ID " << boardID*1 << " tstamp " << timeStamp << " Nhits " << NHits << endl;
+
+  //Nonsense events
+  //if (timeStamp < 0.0001 || NHits <= 0)
+  //{
+    //pfs->ignore(eventSize - 13);
+    //cout << "nbytes caen " << pfs->tellg() - initialPos << endl;
+    //return long(eventSize);
+  //}
+
   //cout << "here " << eventSize << " " << boardID << " " << timeStamp << " " << NHits << endl;
+  //cout << "Nhits " << NHits << endl;
   eventTiming Ev;
 	unsigned char type; // 0x10, if only the ToA value is saved for that channel; 0x20, if only the ToT value is saved for that channel; 0x30, if both ToA and ToT values are saved
+  
+  if (boardID*1 >= 2)
+  {
+    cout << "bad janus board id " << boardID*1 << endl;
+    //pbuf->ignore()
+  }
+  
+  
+  //TODO Temporarily skip high board id
+  //if (boardID*1 >= 2) return (-(eventSize - 5));
+  
   for (int n=0; n<NHits; n++) {
     Ev.clear();
     
@@ -117,7 +165,7 @@ long Event::ReadEventFromStream(ifstream *pfs, double* redgains, double* bluegai
 
 	// Get final position
   std::streampos finalPos = pfs->tellg();
-  //cout << finalPos - initialPos << endl;
+  //cout << "num bytes read " << finalPos - initialPos << endl;
 	// Return # of bytes read
   return long(finalPos - initialPos);
 }

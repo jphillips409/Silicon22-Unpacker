@@ -13,7 +13,7 @@ elist::elist()
 //***********************************************************************
 //places a new strip energy in an order list from max to min energy
 //updated for high/low gain (HINP4) chips
-void elist::Add(int StripNum, float energy, float energylow, int energyRlow, int energyR, float time)
+void elist::Add(int StripNum, float energy, float energylow, int energyRlow, int energyR, float time, float qdc, int qdcflag)
 {
 
   //first find place in list
@@ -46,6 +46,7 @@ void elist::Add(int StripNum, float energy, float energylow, int energyRlow, int
   Order[i].energylowR = energyRlow;
   Order[i].strip = StripNum;
   Order[i].time = time;
+	Order[i].qdc = qdc;
 
   // increase list length
   Nstore = N;
@@ -72,13 +73,15 @@ void elist::Remove(int entry)
   return;
 }
 
-void elist::Add(int StripNum, float energy, int rawenergy, int time)
+void elist::Add(int StripNum, float energy, int rawenergy, int time, float qdc, int qdcflag)
 {
   Order[Nstore].energy = energy;
   Order[Nstore].strip = StripNum;
   Order[Nstore].time = time;
   Order[Nstore].energylow = 0;
   Order[Nstore].energyR = rawenergy;
+  Order[Nstore].qdcflag = qdcflag;
+  Order[Nstore].qdc = qdc;
   Nstore++;
 }
 
@@ -91,6 +94,8 @@ void elist::Copy(int icopy, int iplace)
   Order[iplace].energylowR = Order[icopy].energylowR;
   Order[iplace].strip = Order[icopy].strip;
   Order[iplace].time = Order[icopy].time;
+  Order[iplace].qdcflag = Order[icopy].qdcflag;
+  Order[iplace].qdc = Order[icopy].qdc;
 }
 
 //**********************************************************************
@@ -159,6 +164,8 @@ void elist::reset()
     Order[i].energylowR = 0;
     Order[i].strip = 0;
     Order[i].time = 0;
+    Order[i].qdcflag = 0;
+    Order[i].qdc = -1;
     Order[i].neighbours=0;
     Order[i].energyMax=0;
     Order[i].CsIFlag=0;

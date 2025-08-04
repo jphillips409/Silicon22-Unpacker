@@ -17,6 +17,8 @@ class HINP
   HINP();
   
   unsigned short NWords;
+  //int32_t NWords;
+  unsigned short NWords2;
   int NstripsRead;
   
   //max length of the packet. increase if event rate is high or coincidence is high

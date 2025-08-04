@@ -2,6 +2,7 @@
 #define fiber_
 
 #include <vector>
+#include "s800_results.h"
 
 using namespace std;
 
@@ -40,9 +41,8 @@ public:
 	vector<int> xindices;
 	vector<int> yindices;
 
-	bool make_2d(Event*, Event*, double);
+	bool make_2d(Event*, Event*, double, s800_results S800_results);
 
-private:
 
 	void clear();
 };

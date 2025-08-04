@@ -36,9 +36,9 @@
 #define S800_TIMESTAMP_PACKET		0x5803
 #define S800_EVENT_NUMBER_PACKET        0x5804
 #define S800_VME_TDC_PACKET             0x58F0
-
+#define S800_DC_PACKET                  0x5848
 #define S800_CRDC_MAXWIDTH              32;
-#define S800_DEBUG                      0;// 0 false, 1 true
+#define S800_DEBUG                      1;// 0 false, 1 true
 
 #define S800_FP_CRDC_CHANNELS           224
 #define S800_FP_CRDC_SAMPLES            512

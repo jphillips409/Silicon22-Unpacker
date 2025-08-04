@@ -19,6 +19,7 @@ void solution::reset()
   benergylow = -1;
   benergylowR = -1;
   denergy = -1;
+  qdc = -1;
   ifront = -1;
   iback = -1;
   ide = -1;
@@ -40,6 +41,8 @@ void solution::reset()
   Ypos = -1;
   theta = -1;
   phi = -1;
+  theta_s800 = -1;
+  phi_s800 = -1;
   energyTot = -1;
   Ekin = -1;
   velocity = -1;

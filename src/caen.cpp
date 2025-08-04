@@ -13,7 +13,7 @@ unsigned short * caen::read(unsigned short * point)
   unsigned short header2 = *point++;
   unsigned short header1 = *point++;
   //cout << "header 2 " << hex << header2 << dec << endl;
-  //cout << "header 1 " << hex << header1 << dec << endl;
+ // cout << "header 1 " << hex << header1 << dec << endl;
 
   //extract information
   unsigned short bit =  (header1>>9) & 0x1;
@@ -59,7 +59,7 @@ unsigned short * caen::read(unsigned short * point)
   //read end of block
   header2 = *point++;
   header1 = *point++;
-
+  //cout << "trailer " << hex << header1 << " " << header2 << endl;
   bit = (header1>>10) & 0x1;
   if (bit == 0) 
   {
@@ -67,6 +67,7 @@ unsigned short * caen::read(unsigned short * point)
 		     << geographic << endl;
    //abort();
   }
+  //cout << " ADC point " << *point << " point 2 " << *(point+1) << endl;
   return point;
 }
 

@@ -7,6 +7,19 @@ S800::S800(TRandom * ran0, histo_sort * Histo1, int setting)
   Init(setting);
 }
 
+//***********************************************************************************
+//During run 173, MPDC 2 (CRDC 2) crapped out. For fragments in MPDC 2, no longer have momentum resolution
+// i.e. cannot use inverse maps or get a pid correction for those fragments that hit MPDC 2.
+// Need to pass a run number to S800 so I can account for funky detector stuff like this.
+// A possible solution would be to use previous runs momentum resolution as a standard for crapped MPDC 2 runs.
+// Might not need an angular correction for the pid to work on those fragments, Si22 and Si23 might be well separated enough.
+// Still get energy from those fragments, just no good position.
+//***********************************************************************************
+
+
+
+
+
 void S800::Reset()
 {
   mTDC.Reset();
@@ -33,17 +46,18 @@ void S800::Reset()
 S800::~S800()
 {
   delete beam_pid;
-  for (int i=0; i<10; i++) {delete map[0][i];}
-  for (int i=0; i<8; i++) {delete map[1][i];}
+  for (int i=0; i<2; i++) {delete map[0][i];}
+  for (int i=0; i<22; i++) {delete map[1][i];}
+  for (int i=0; i<2; i++) {delete map[2][i];}
   delete [] map;
   delete track;
-  for(int i =0;i<nSettings;i++) //Loop over setttings
+  /*for(int i =0;i<nSettings;i++) //Loop over setttings
   {
     for(int j=0;j<nBeams;j++) //Loop over beams
     {
       delete residue_pid[i][j];
     }
-  }
+  }*/
   delete [] residue_pid;
   // delete residue_pid_O14;
   // delete residue_pid_Ne17;
@@ -56,34 +70,50 @@ void S800::Init(int setting)
   //The inverse map is different for each S800 setting and will
   //need to be chaged for each charge and rigidity
   //manually load in all the inverse maps
-  map = new S800Map**[2]; //initialize the inverse map for number of settings
-  map[0] = new S800Map*[13]; //initialize space for 11 Ca setting inverse maps
-  for (int i=0; i<13; i++) {map[0][i] = new S800Map();}
-  map[0][0]->LoadInverseMap("s800inputs/Ca36_Ca36.inv"); //load Ca setting
-  map[0][1]->LoadInverseMap("s800inputs/Ca36_Ca35.inv");
-  map[0][2]->LoadInverseMap("s800inputs/Ca36_K35.inv");
-  map[0][3]->LoadInverseMap("s800inputs/Ca36_Ar35.inv");
-  map[0][4]->LoadInverseMap("s800inputs/Ca36_Ar34.inv");
-  map[0][5]->LoadInverseMap("s800inputs/Ca36_Ar33.inv");
-  map[0][6]->LoadInverseMap("s800inputs/Ca36_Ar32.inv");
-  map[0][7]->LoadInverseMap("s800inputs/Ca36_Cl33.inv");
-  map[0][8]->LoadInverseMap("s800inputs/Ca36_Cl32.inv");
-  map[0][9]->LoadInverseMap("s800inputs/Ca36_Cl31.inv");
-  map[0][10]->LoadInverseMap("s800inputs/Ca36_Ca37.inv");
-  map[0][11]->LoadInverseMap("s800inputs/Ca36_K36.inv");
-  map[0][12]->LoadInverseMap("s800inputs/Ca36_Cl34.inv");
+  map = new S800Map**[3]; //initialize the inverse map for number of settings TODO add more settings
+  map[0] = new S800Map*[2]; //initialize space for 1 Si23 setting inverse maps TODO add more maps
+  for (int i=0; i<2; i++) {map[0][i] = new S800Map();}
+  //Setting 0 is used for uncreated beam runs, switch the inverse map for the desired run
+  map[0][0]->LoadInverseMap("s800inputs/UnreactedNoTarg_Si23.inv"); //load Si23 for just unreacted
+  map[0][1]->LoadInverseMap("s800inputs/UnreactedNoTarg_Mg21.inv"); //load Mg21 for just unreacted
+ // map[0][0]->LoadInverseMap("s800inputs/UnreactedFibers_Si23.inv"); //load Si23 for unreacted + fibers
+  //map[0][1]->LoadInverseMap("s800inputs/UnreactedFibers_Mg21.inv"); //load Mg21 for unreacted + fibers
+  //map[0][0]->LoadInverseMap("s800inputs/UnreactedFibersThinTarg_Si23.inv"); //load Si23 for unreacted + fibers + thin target
+  //map[0][1]->LoadInverseMap("s800inputs/UnreactedFibersThinTarg_Mg21.inv"); //load Mg21 for unreacted + fibers + thin target
 
-  map[1] = new S800Map*[9]; //initialize space for 8 K setting inverse maps
-  for (int i=0; i<9; i++) {map[1][i] = new S800Map();}
-  map[1][0]->LoadInverseMap("s800inputs/K35_K35.inv"); //load K setting
-  map[1][1]->LoadInverseMap("s800inputs/K35_K36.inv");
-  map[1][2]->LoadInverseMap("s800inputs/K35_Ar35.inv");
-  map[1][3]->LoadInverseMap("s800inputs/K35_Ar34.inv");
-  map[1][4]->LoadInverseMap("s800inputs/K35_Ar33.inv");
-  map[1][5]->LoadInverseMap("s800inputs/K35_Cl34.inv");
-  map[1][6]->LoadInverseMap("s800inputs/K35_Cl33.inv");
-  map[1][7]->LoadInverseMap("s800inputs/K35_Cl32.inv");
-  map[1][8]->LoadInverseMap("s800inputs/K35_Ca37.inv");
+
+  map[1] = new S800Map*[22]; //initialize space for 5 Si23 setting inverse maps TODO add more maps
+  for (int i=0; i<22; i++) {map[1][i] = new S800Map();}
+  map[1][0]->LoadInverseMap("s800inputs/Setting1_Si23.inv"); //load Si23 setting
+  map[1][1]->LoadInverseMap("s800inputs/Setting1_Al22.inv"); //load Al22 setting
+  map[1][2]->LoadInverseMap("s800inputs/Setting1_Mg21.inv"); //load Mg20 setting
+  map[1][3]->LoadInverseMap("s800inputs/Setting1_Mg20.inv"); //load Mg20 setting
+  map[1][4]->LoadInverseMap("s800inputs/Setting1_Ne17.inv"); //load Ne17 setting
+  map[1][5]->LoadInverseMap("s800inputs/Setting1_Ne18.inv"); //load Ne18 setting
+  map[1][6]->LoadInverseMap("s800inputs/Setting1_Al23.inv"); //load Al23 setting
+  map[1][7]->LoadInverseMap("s800inputs/Setting1_Na20.inv"); //load Na20 setting
+  map[1][8]->LoadInverseMap("s800inputs/Setting1_Na21.inv"); //load Na21 setting
+  map[1][9]->LoadInverseMap("s800inputs/Setting1_Mg22.inv"); //load Mg22 setting
+  map[1][10]->LoadInverseMap("s800inputs/Setting1_Ne19.inv"); //load Ne19 setting
+  map[1][11]->LoadInverseMap("s800inputs/Setting1_F18.inv"); //load F18 setting
+  map[1][12]->LoadInverseMap("s800inputs/Setting1_F17_0_6604.inv"); //load F17 setting
+  map[1][13]->LoadInverseMap("s800inputs/Setting1_O15.inv"); //load O15 setting
+  map[1][14]->LoadInverseMap("s800inputs/Setting1_O16.inv"); //load O16 setting
+  map[1][15]->LoadInverseMap("s800inputs/Setting1_Ne20.inv"); //load Ne20 setting
+  map[1][16]->LoadInverseMap("s800inputs/Setting1_O14.inv"); //load O14 setting
+  map[1][17]->LoadInverseMap("s800inputs/Setting1_N14.inv"); //load N14 setting
+  map[1][18]->LoadInverseMap("s800inputs/Setting1_N13.inv"); //load N13 setting
+  map[1][19]->LoadInverseMap("s800inputs/Setting1_C12.inv"); //load C12 setting
+  map[1][20]->LoadInverseMap("s800inputs/Setting1_C11.inv"); //load C11 setting
+  map[1][21]->LoadInverseMap("s800inputs/Setting1_Si24.inv"); //load Si24 setting
+
+  //TODO get real inverse maps for this setting
+  map[2] = new S800Map*[2]; //initialize space for 5 Si23 setting inverse maps TODO add more maps
+  for (int i=0; i<2; i++) {map[2][i] = new S800Map();}
+  map[2][0]->LoadInverseMap("s800inputs/Setting2_Si22.inv"); //load Si22 setting
+  map[2][1]->LoadInverseMap("s800inputs/Setting2_Si23.inv"); //load Si22 setting
+
+
   //////////////////////////////////////
   track = new S800FpTrack(map);
 
@@ -91,16 +121,32 @@ void S800::Init(int setting)
   string beam_pid_name;
 
   //settings for the s800 settings: inverse map, brho
-  // setting = 0 is Ca36 while setting = 1 is K35
   if (S800Setting == 0)
   {
-    brho = 1.96960;
-    beam_pid_name = "s800_beam_Caset";
+    //Use setting 0 for different calibration runs
+    //Uncomment the correct one. Beam PID is the same as setting 1
+    brho = 2.41493; //run 48, just unreacted beam
+    //beam_pid_name = "Setting1_beam";
+
+    //brho = 2.31911; //run 45 + 46, unreacted beam + fibers
+    //beam_pid_name = "Setting1_beam";
+
+    //brho = 2.24917; //run 49 + 50, unreacted beam + fibers + 0.5 mm targ
+    beam_pid_name = "Setting1_beam";
+
+    //Normally uncomment this, don't want to accidently use this if not calibrating
+    //cout << "There is no setting 0, choose 1-3" << endl;
+    //abort();
   }
   else if (S800Setting == 1)
   {
-    brho = 2.04680;
-    beam_pid_name = "s800_beam_Kset";
+    brho = 2.35714;
+    beam_pid_name = "Setting1_beam";
+  }
+  else if (S800Setting == 2)
+  {
+    brho = 1.9900;
+    beam_pid_name = "Setting2_beam";
   }
   else
   {
@@ -118,20 +164,21 @@ void S800::Init(int setting)
   /////////////////////////////////////////////////////////////////////////////////////////
   //Load in the residue PID gates
   // beam numbers
-  // 0 - Ca37
-  // 1 - K36
-  // 2 - Ar35
-  // 3 - Cl34
+  // 0 - Si23
+  // 1 - Al22
+  // 2 - Mg21
   // setting numbers
-  // 0 - Ca36 setting, brho = 1.96960
-  // 1 - K35 setting, brho = 2.04680
+  // 0 - Used for unreacted beam calibrations
+  // 1 - Furthest position to get 2+ state, brho = 2.3571
+  // 2 - Closest position to get p + 22Si from 23P, brho = 1.9900
 
   string name;
-  nSettings = 2;
+  nSettings = 3;
   nBeams = 4;
 
-  string beams[4] = {"Ca37","K36","Ar35","Cl34"};
-
+  //string beams[4] = {"Ca37","K36","Ar35","Cl34"};
+  string beams[nBeams] = {"Si23","Al22","Mg21","Na20"};
+  string settings[nSettings] = {"Setting0","Setting1","Setting2"};
   residue_pid = new pid**[nSettings]; //Two arrays of residue pids for Ca and K settings
 
   for(int i =0;i<nSettings;i++) //Loop over setttings
@@ -141,9 +188,14 @@ void S800::Init(int setting)
     for(int j=0;j<nBeams;j++) //Loop over beams
     {
       if(i==0)
-        name = Form("CaSetting/s800_residue_Ca_%s",beams[j].c_str());
+        //use for different calibrations, uncomment the needed one
+        name = Form("UnreactedBeam/Unreacted_residue",beams[j].c_str());
+        //name = Form("UnreactedBeam/Fiber_residue",beams[j].c_str());
+        //name = Form("UnreactedBeam/FiberThinTarg_residue",beams[j].c_str());
       else if(i==1)
-        name = Form("KSetting/s800_residue_K_%s",beams[j].c_str());
+        name = Form("Setting1/s800_residue%s",beams[j].c_str());
+      else if(i==2)
+        name = Form("Setting2/s800_residue%s",beams[j].c_str());
 
       cout << "for s800setting " << i << " load " << name << endl;
       residue_pid[i][j] = new pid(name, true); //use S800 directory
@@ -201,19 +253,28 @@ void S800::Init(int setting)
   //CRDC calibration parameters
   //[CRDC #]
   // e19017
-  CRDCSlopeX[0] = 2.54;// mm/pad
-  CRDCSlopeX[1] = 2.54;// mm/pad
-  CRDCSlopeY[0] = -0.0758;// mm/ch
-  CRDCSlopeY[1] = 0.0875;// mm/ch
+  
+  CRDCSlopeX[0] = -1.23083;// mm/pad
+  CRDCSlopeX[1] = -1.23083;// mm/pad
+  CRDCSlopeY[0] = -0.03305;//-0.05858;// mm/ch
+  CRDCSlopeY[1] = 0.033325;//0.05858;// mm/ch
 
   //[CRDC #]
-  CRDCOffsetX[0] = -281.94 + 1.28;//mm
-  CRDCOffsetX[1] = -281.94 + 1.28;//mm
+  CRDCOffsetX[0] = 299.971;//mm
+  CRDCOffsetX[1] = 299.971;//mm
   //[CRDC #][run54/56 = 0, run109/110 = 1]
-  CRDCOffsetY[0][0] = 53.657; //mm
-  CRDCOffsetY[1][0] = -65.66; //mm
-  CRDCOffsetY[0][1] = 50.614; //mm
-  CRDCOffsetY[1][1] = -61.917; //mm
+  CRDCOffsetY[0][0] = 1034.55;//398.46;//5600; //mm
+  CRDCOffsetY[1][0] = -1039.92;//-407.59;//-5616; //mm
+  CRDCOffsetY[0][1] = -29.52 - 1.31 - 9.0;//-5.36;//50.614; //mm //overestimate to get runs right, mask will be off
+  CRDCOffsetY[1][1] = 28.1 - 9.0;//3.11;//-61.917; //mm
+  CRDCOffsetY[0][2] = 3.85 - 30.0; //mm
+  CRDCOffsetY[1][2] = -4.83 - 20.0; //mm
+  CRDCOffsetY[0][3] = 7.0 + 16.0;//-48.85; //mm    every run past 162, constant shift assumption
+  CRDCOffsetY[1][3] = 6.0 + 4.0; //mm    every run past 162, constant shift assumption
+  CRDCOffsetY[0][4] = 29 + 10.0;//-48.85; //mm    every run past 200, constant shift assumption
+  CRDCOffsetY[1][4] = 7.0 + 9.0; //mm    every run past 200, constant shift assumption
+  CRDCOffsetY[0][5] = 35.2;//-48.85; //mm    every run past 220, constant shift assumption
+  CRDCOffsetY[1][5] = 10.0; //mm    every run past 220, constant shift assumption
 
   gravity_width = 12; //pads
 
@@ -222,10 +283,18 @@ void S800::Init(int setting)
 
 bool S800::unpack(unsigned short *&point,int runno)
 {
-  long long int n;
+  unsigned long long int n;
   unsigned short plength, ptag, ID, nwords, words;
 
   nwords = *point++;
+  Histo->S800_NumWords_R->Fill(nwords);
+  if (nwords > 3000)
+  {
+    //cout << "huge S800 event nwords = " << nwords << endl;
+    S800Huge++;
+    return false; //S800 events should not be this massive, current limit set at 3000
+  }
+  Histo->S800_NumWords_Accepted->Fill(nwords);
   nwords--;
   if(*point++ != S800_PACKET)
     {
@@ -257,10 +326,26 @@ bool S800::unpack(unsigned short *&point,int runno)
   // Histo->ScalingFactorvsRun->Fill(runno,IC.ScalingFactor);
   
   nwords--;
+  //cout << "nwords " << nwords << endl;
+  int counter = 0;
+
+  int nwords_check = nwords;
+
   while(nwords > 0)
   {
+    //cout << "HERE " << nwords << endl;
     plength = *point; ++point; 
     ptag = *point; ++point;
+
+    if (plength > nwords || nwords > nwords_check || plength == 0)
+    {
+      cout << "Likely a problem with the MPDC unpacker" << endl;
+      //Likely a problem with the MPDC unpacker
+      SRSbad++;
+      return false;
+    }
+    //cout << plength << " " << hex << ptag << dec << endl;
+    //return false;
     switch(ptag){
     case S800_TRIGGER_PACKET:
       //cout << "Trigger: " << hex << S800_TRIGGER_PACKET << dec << endl;
@@ -297,10 +382,16 @@ bool S800::unpack(unsigned short *&point,int runno)
     
     case S800_TIMESTAMP_PACKET:
       //cout << "TIMESTAMP: " << hex << S800_TIMESTAMP_PACKET << dec << endl;
-      n = *point++;
-      n = (*point++<<16|n);
-      n = (*point++<<16|n);
-      n = (*point++<<16|n);
+      unsigned long long Tfrag;
+      Tfrag = *point++;
+      n = Tfrag;
+      Tfrag = *point++;
+      n = ((Tfrag<<16)|n);
+      Tfrag = *point++;
+      n = ((Tfrag<<32)|n);
+      Tfrag = *point++;
+      n = ((Tfrag<<48)|n);
+      tstamp = n;
       //      this->SetInternalTS(n);
       break;
       
@@ -316,6 +407,11 @@ bool S800::unpack(unsigned short *&point,int runno)
       //cout << "HODO: " << hex << S800_FP_HODO_PACKET << dec << endl;
       point = DecodeS800HodoScope(point);
       break;
+    case S800_DC_PACKET:
+      SRStot++;
+      point = DecodeS800MPDC(point,runno); 
+      
+      break;
     case S800_VME_TDC_PACKET:
       //cout << "VME_TDC: " << hex << S800_VME_TDC_PACKET << dec << endl;
       point = DecodeS800NewMultiHitTDC(point);
@@ -324,13 +420,18 @@ bool S800::unpack(unsigned short *&point,int runno)
       point += plength - 2;
       break;
     }
+
+    counter++;
+
+    //if (counter >100) abort();
     nwords -= plength;
+    //cout << nwords << endl;
   }
   //this->SetTS(ts);
   //if(ffirst_ts<1){
   //  ffirst_ts = ts;
   //}
-
+  SRSgood++;
   return true;
  
   
@@ -378,14 +479,17 @@ unsigned short* S800::DecodeS800Trigger(unsigned short *p){
   int secondary = -1;
   registr = *p++;
   words--;
+  //cout << "words " << words << endl;
   while(words > 0){
     ch = ((*p)&0xf000)>>12;
+    //cout << "CH " << ch << endl;
     if (ch ==  8) s800 = (*p++)&0xfff;
     if (ch ==  9) external1 = (*p++)&0xfff;
     if (ch == 10) external2 = (*p++)&0xfff;
     if (ch == 11) secondary = (*p++)&0xfff;
     words--;
   }
+  //cout << registr << " " << s800 << " " << external1 << " " << external2 << " " << secondary << endl;
   //  this->GetTrigger()->Set(registr, s800, external1, external2, secondary);
 
   Trig.registr = registr;
@@ -393,7 +497,6 @@ unsigned short* S800::DecodeS800Trigger(unsigned short *p){
   Trig.external1 = external1;
   Trig.external2 = external2;
   Trig.secondary = secondary;
-  
   
   return p;
 }
@@ -408,20 +511,110 @@ unsigned short* S800::DecodeS800Scintillator(unsigned short *p, unsigned short u
   if (updown%2==0) {
     de_up     = (*p++)&0xfff;
     time_up   = (*p++)&0xfff;
+    Scint[id].de_up = de_up;
+    Scint[id].time_up = time_up;
   }
   else {
     de_down   = (*p++)&0xfff;
     time_down = (*p++)&0xfff;
+    Scint[id].de_down = de_down;
+    Scint[id].time_down = time_down; 
   }
   //  this->GetScintillator(id)->SetID(id);
   //this->GetScintillator(id)->Set(de_up, time_up, de_down, time_down);
 
-  Scint[id].de_up = de_up;
-  Scint[id].time_up = time_up;
-  Scint[id].de_down = de_down;
-  Scint[id].time_down = time_down; 
+  return p;
+}
+
+//Adding MPDC unpacker for SRS data - SG Oct29 2024
+unsigned short* S800::DecodeS800MPDC(unsigned short *p, int runno){
+
+  UShort_t dcId = *(p++);
+  UShort_t length = *(p++);
+  short i = length - 1; //the last bit isn't useful
+  UShort_t nGoodHits = 0;
+
+  int nHits = i/14;
+  double tmpT = 0.0;
+  double tmpTa = 0.0;
+  uint64_t preT = 0;
+  for(int iHit = 0; iHit < nHits; iHit++) {
+//std::cout << std::hex << *(p++) << "\t" << *(p++) <<  "\t" << *(p++) << "\t" << *(p++) << std::endl;
+
+    //unsigned short *pig = p;
+    //for(int i = 0; i < 10; i++) std::cout << std::hex << *(pig++) << std::dec << " ";
+    //std::cout << std::endl;
+
+    int fecIdBuff = *(p++);
+    int vmmIdBuff = *(p++);
+    int chnoBuff = *(p++);
+    int chnoMappedBuff = *(p++);
+    int adcBuff = *(p++);
+    int tdcBuff = *(p++);
+
+    uint64_t recoTs = 0;
+    for(int i = 0; i < 4; i++) {
+      recoTs |= (static_cast<uint64_t>(*(p++))) << (i * 16);
+    }
+
+    short bcid = *(p++);
+    short triggerOffset = *(p++);
+
+    uint64_t recoMarker = 0;
+    for(int i = 0; i < 2; i++) {
+      recoMarker |= (static_cast<uint64_t>(*(p++))) << (i * 16);
+    }
+
+    double timeFec = triggerOffset * 4096.0 * 22.5;
+    double timeChip = bcid * 22.5 + (1.5 * 22.5 - tdcBuff * 60/255.0);
+    double driftTime = (timeChip + timeFec - recoMarker * 22.5);
+
+    tmpT += adcBuff*driftTime;
+    tmpTa += adcBuff;
+    CRDC[dcId].raw[iHit] = adcBuff;
+    CRDC[dcId].cal[iHit] = adcBuff;
+    CRDC[dcId].pad[iHit] = chnoMappedBuff;
+  }
+  CRDC[dcId].PadMult = nHits;
+  CRDC[dcId].tac = tmpT/tmpTa; //These are drift times weighted by pulse height
+  //CRDC[dcId].calY = CRDC[dcId].tac * CRDCSlopeY[dcId] + CRDCOffsetY[dcId][0];
+
+  //offset drifts slightly over course of experiment, interpolate linearly between
+  //
+  float offset;
+  if (runno < 51) {offset = CRDCOffsetY[dcId][0];}
+  else if (runno >= 51 && runno <= 116)
+  {
+    offset = CRDCOffsetY[dcId][0] + ((float)runno -50)*(CRDCOffsetY[dcId][1])/(113-50);
+  }
+  else if (runno > 116 && runno <= 162)
+  {
+    offset = CRDCOffsetY[dcId][0] + CRDCOffsetY[dcId][1] + ((float)runno -116)*(CRDCOffsetY[dcId][2])/(161-116);
+  }
+  else if (runno > 162 && runno < 200) //Assume the offset is double that from Mask runs 183, 184. Go up to run 267
+  {
+    //Start assuming constant offsets for runs
+    offset = CRDCOffsetY[dcId][0] + CRDCOffsetY[dcId][1] + CRDCOffsetY[dcId][2] + (CRDCOffsetY[dcId][3]);
+  }
+  else if (runno >= 200 && runno <= 220) //Assume the offset is double that from Mask runs 183, 184. Go up to run 267
+  {
+    //Start assuming constant offsets for runs
+    offset = CRDCOffsetY[dcId][0] + CRDCOffsetY[dcId][1] + CRDCOffsetY[dcId][2] + (CRDCOffsetY[dcId][4]);
+  }
+  else if (runno > 220) //Assume the offset is double that from Mask runs 183, 184. Go up to run 267
+  {
+    offset = CRDCOffsetY[dcId][0] + CRDCOffsetY[dcId][1] + CRDCOffsetY[dcId][2] + (CRDCOffsetY[dcId][5]); 
+  }
+  else offset = CRDCOffsetY[dcId][0];
+
+  CRDC[dcId].calY = CRDC[dcId].tac*CRDCSlopeY[dcId] + offset;
+
+  //CRDC[dcId].calY = tmpT/tmpTa * CRDCSlopeY[dcId] + CRDCOffsetY[dcId][0];
+  //cout << dcId << " " << tmpT/tmpTa << " " << CRDC[dcId].tac << " " << CRDC[dcId].calY << " " << CRDCSlopeY[dcId] << " " << CRDCOffsetY[dcId][0] <<  endl;
   
-  
+  //cout << "dcId " << dcId << endl;
+  //cout << "CRDC[dcId].PadMult " << CRDC[dcId].PadMult << "   CRDC[dcId].tac " << CRDC[dcId].tac << "    CRDC[dcId].calY " << CRDC[dcId].calY << endl;
+
   return p;
 }
 
@@ -485,6 +678,9 @@ unsigned short* S800::DecodeS800HodoScope(unsigned short *p){
       p++; words--;
     }
   }string name = "s800_beam_Caset";
+
+  //cout << "hodo here " << energy << endl;
+
   return p;
 }
 
@@ -510,14 +706,33 @@ unsigned short* S800::DecodeS800Crdc(unsigned short *p, int id, int runno){
   //offset drifts slightly over course of experiment, interpolate linearly between
   //
   float offset;
-  if (runno < 56) { offset = CRDCOffsetY[id][0]; }
+ /* if (runno < 55) {offset = CRDCOffsetY[id][0]};
+  else if (runno >= 55 && runno <= 109)
+  {
+    offset = CRDCOffsetY[id][0] + ((float)runno - (109-55))*(CRDCOffsetY[id][1]-CRDCOffsetY[id][0])/(109-55);
+  }
+  else if (runno >= 117 && runno <= 159)
+  {
+    offset = CRDCOffsetY[id][0] + ((float)runno - (159-117))*(CRDCOffsetY[id][2]-CRDCOffsetY[id][0])/(159-117);
+  }
+  else if (runno >= 255)
+  {
+    offset = CRDCOffsetY[id][0] + CRDCOffsetY[id][2]*2; //Assume the offset has roughly doubled
+  }
+  else offset = 0;*/
+
+
+/*  if (runno < 56) { offset = CRDCOffsetY[id][0]; }
   else if (runno > 109) { offset = CRDCOffsetY[id][1]; }
   else
   {
     offset = CRDCOffsetY[id][0] + ((float)runno - 56.0)*
             (CRDCOffsetY[id][1]-CRDCOffsetY[id][0])/(55.0);
   }
+
   CRDC[id].calY = tac*CRDCSlopeY[id] + offset;
+*/
+  CRDC[id].calY = tac*CRDCSlopeY[id] + CRDCOffsetY[id][0];
   return p;
 }
 
@@ -582,24 +797,26 @@ unsigned short* S800::DecodeS800CrdcRaw(unsigned short *p, int id){
   bool debug = S800_DEBUG;
   UShort_t length = *p++;
   short i = length-3;
-  p++;	// skip packet id
+  p++;  // skip packet id
   UShort_t threshold = *p++;
 
   //  cout << "Decoding CRDC " << id << " " << i << endl;
-  while(i > 0){
-    if ((*p)>>15 != 1) {
-      std::cout 
-	<< "DecodedEvent: " 
-	<< "CRDC data is corrupted!" 
-	<< std::endl;
+  while(i > 0)
+  {
+    if ((*p)>>15 != 1) 
+    {
+      std::cout << "DecodedEvent: " << "CRDC data is corrupted!" << std::endl;
       p++; i--;
       continue;
-    } else{
+    }
+    else
+    {
       isample  = ((*p)&0x7FC0)>>6;
       ichannel =  (*p)&0x003F;
-      if (i == length-3){
-	sampleBegin     = isample; 
-	previous_sample = isample;
+      if (i == length-3)
+      {
+        sampleBegin     = isample; 
+        previous_sample = isample;
       }
 //      cout << previous_channel << " " << ichannel << endl;
       if(previous_channel > ichannel) sindex++;
@@ -607,46 +824,52 @@ unsigned short* S800::DecodeS800CrdcRaw(unsigned short *p, int id){
     }
     p++; i--;
     memset(cdata, 0, sizeof(cdata));
-    while ((*p)>>15 == 0) {
+    while ((*p)>>15 == 0) 
+    {
       connector = ((*p)&0x0C00)>>10;
       cdata[connector] = (*p)&0x3FF;
       p++; i--;
       if (i == 0) break;
     }
-    if(isample < sampleBegin || isample > sampleBegin+maxwidth){
+    if(isample < sampleBegin || isample > sampleBegin+maxwidth)
+    {
       if(debug)
-	printf("Warning in Crdc Unpack: inconsistent sample number: %d (first: %d)\n", 
-	       isample, sampleBegin);
+        printf("Warning in Crdc Unpack: inconsistent sample number: %d (first: %d)\n", isample, sampleBegin);
       mes1 = false;
       //  continue;
     }
-    if(isample < previous_sample){
+    if(isample < previous_sample)
+    {
       if(debug)
-	printf("Warning in Crdc Unpack: sample number lower than previous: %d (previous: %d)\n", 
-	       isample, previous_sample);
+        printf("Warning in Crdc Unpack: sample number lower than previous: %d (previous: %d)\n", isample, previous_sample);
       mes2 = false;
       //      continue;
     }
     previous_sample = isample;
-    for(int j=0; j<4; j++){
+    for(int j=0; j<4; j++)
+    {
       ch = ichannel+j*64;
-      if (cdata[j] != 0 && ch < channels){
-	if (cdata[j] < threshold) {
-	  if (debug)
-	    printf("Warning in Crdc Unpack: data lower than threshold: %d (threshold: %d)\n", cdata[j], threshold);
-	  mes3 = false;
-	} else {
-	  //std::cout << "ch " << ch << " cdata[j]" << cdata[j] << " isample " << isample << std::endl;
-	  //	  this->GetCrdc(id)->Set(cdata[j], isample, ch);
-	  CRDC[id].cdata[ch][sindex] = cdata[j];
-	  
-	}
+      if (cdata[j] != 0 && ch < channels)
+      {
+        if (cdata[j] < threshold)
+        {
+          if (debug)
+            printf("Warning in Crdc Unpack: data lower than threshold: %d (threshold: %d)\n", cdata[j], threshold);
+      	  mes3 = false;
+	      }
+        else
+        {
+	        //std::cout << "ch " << ch << " cdata[j]" << cdata[j] << " isample " << isample << std::endl;
+	        //	  this->GetCrdc(id)->Set(cdata[j], isample, ch);
+	        CRDC[id].cdata[ch][sindex] = cdata[j];
+	      }
       } 
-      else if (cdata[j] != 0 && ch >= channels){
-	if (debug) {
-	  printf("Warning in Crdc Unpack: channel greater than limit: %d (limit: %d)\n", ch, channels);
-	}
-	mes4 = false;
+      else if (cdata[j] != 0 && ch >= channels)
+      {
+        if (debug) {
+	        printf("Warning in Crdc Unpack: channel greater than limit: %d (limit: %d)\n", ch, channels);
+	      }
+	      mes4 = false;
       }
     }
     //    sampleWidth = isample - sampleBegin + 1;
@@ -681,7 +904,7 @@ void S800::CRDCIntegrate(int id)
     int nsamples=0;
     for(int s=0;s<CRDC[id].samplewidth;s++)
     {
-	  // cout << "crdc " << id << " pad " << i << " sample "<< CRDC[id].cdata[i][s] << endl;
+	    cout << "crdc " << id << " pad " << i << " sample "<< CRDC[id].cdata[i][s] << endl;
   	  if(CRDC[id].cdata[i][s] !=0)
       {
         nsamples++;
@@ -692,7 +915,7 @@ void S800::CRDCIntegrate(int id)
 
         //cout << "raw " << raw << " id " << id << " setting " << S800Setting << " i " << i << endl;
         //cout << "  slope " << Chargeslope[id][S800Setting][i] << "  int " << Chargeintercept[id][S800Setting][i] << endl;
-        //cal = raw;
+        cal = raw;
       }
 	  }
     if(nsamples>0)
@@ -855,24 +1078,36 @@ unsigned short* S800::DecodeS800NewMultiHitTDC(unsigned short *p){
 
 void S800::CalculateGravity(int id)
 {
-
+  //cout << "CalculateGravity" << endl;
   int maxpad = 0;
   int padmax = 0;
+  //cout << "CRDC[" << id << "].PadMult " << CRDC[id].PadMult << endl;
+
+
   for(int i=0;i<CRDC[id].PadMult-1;i++)
   {
-    if(CRDC[id].cal[i] > 0 && CRDC[id].cal[i+1] > 0 && CRDC[id].cal[i] > maxpad)
+    //cout << "CRDC[" << id << "].cal[" << i << "] = " << CRDC[id].cal[i] << endl;
+    //cout << "CRDC[" << id << "].pad[" << i << "] " << CRDC[id].pad[i] << endl;
+    //if(CRDC[id].cal[i] > 0 && CRDC[id].cal[i+1] > 0 && CRDC[id].cal[i] > maxpad)
+    //need to change the above IF statement, the mpdc doesn't always come in increasing pad order
+    if(CRDC[id].cal[i] > maxpad)
     {
       maxpad = CRDC[id].cal[i];
       padmax = CRDC[id].pad[i];
     }
   }
+  //cout << "1) maxpad " << maxpad << endl;
+  //cout << "   PadMult " << CRDC[id].PadMult << endl;
   if(CRDC[id].PadMult%2 != 0) padmax = CRDC[id].pad[CRDC[id].PadMult/2];
   else  padmax = CRDC[id].pad[CRDC[id].PadMult/2+1];
+
+  //cout << "2) padmax " << padmax << endl;
+
   if(padmax == 0)
   {
     CRDC[id].padsum = 0;
     CRDC[id].x_gravity = -500;
-    //      cout << "padmax = 0 for crdc " << id << " mult = " << CRDC[id].PadMult <<endl;
+    //cout << "padmax = 0 for crdc " << id << " mult = " << CRDC[id].PadMult <<endl;
     return;
   }
 
@@ -882,9 +1117,9 @@ void S800::CalculateGravity(int id)
   {
     lowpad =0;
   }
-  if(highpad >= 224)
+  if(highpad >= 480)
   {
-    highpad = 223;
+    highpad = 480;
   }
 
   float sum=0.0, mom=0.0;
@@ -900,11 +1135,18 @@ void S800::CalculateGravity(int id)
   CRDC[id].padsum = sum;
   CRDC[id].mom = mom;
   CRDC[id].x_gravity = mom/sum * CRDCSlopeX[id] + CRDCOffsetX[id];
+  //cout << "CRDC[" << id << "].x_gravity " << CRDC[id].x_gravity << endl;
 }
 
 
 bool S800::analyze()
 {
+  //for(int i=0;i<3;i++) //will never really have e2 and e3 so no loop needed
+  //{
+  //cout << "e1up[" << i << "] = " << Scint[i].de_up << endl;
+  Histo->e1up->Fill(Scint[0].de_up);
+  Histo->e1down->Fill(Scint[0].de_down);
+  //}
   for(int i=0;i<(int)mTDC.e1up.size();i++)
   {
     Histo->Te1up->Fill(mTDC.e1up.at(i));
@@ -917,7 +1159,8 @@ bool S800::analyze()
   {
     Histo->Tobj->Fill(mTDC.obj.at(i));
   }
-  Histo->Tobj_mult->Fill(mTDC.obj.size());
+  //cout << "filling Tobj_mult " << mTDC.obj.size() << endl;
+  Histo->Tobj_mult->Fill((int)mTDC.obj.size());
   
   Histo->CRDC1PadMult->Fill(CRDC[0].PadMult);
   Histo->CRDC2PadMult->Fill(CRDC[1].PadMult);
@@ -952,11 +1195,13 @@ bool S800::analyze()
 
   if(CRDC[0].x_gravity == -500 || CRDC[1].x_gravity ==-500)
   {
+    //cout << "0 x_gravity: " << CRDC[0].x_gravity << "    1 x_gravity " << CRDC[1].x_gravity << endl;
     return false;
   }
 
   Histo->CRDC1X->Fill(CRDC[0].x_gravity);
   Histo->CRDC2X->Fill(CRDC[1].x_gravity);
+  //cout << "0 x_gravity " << CRDC[0].x_gravity << " " << CRDC[0].tac << endl;
   Histo->CRDC1XY->Fill(CRDC[0].x_gravity,CRDC[0].tac);
   Histo->CRDC2XY->Fill(CRDC[1].x_gravity,CRDC[1].tac);
   Histo->CRDC1XrawY->Fill(CRDC[0].mom/CRDC[0].padsum, CRDC[0].tac);
@@ -969,9 +1214,16 @@ bool S800::analyze()
     if((int)mTDC.xfp.size()>0)
     {
       Histo->ObjvsXFP->Fill(mTDC.obj.at(0),mTDC.xfp.at(0));
+      Histo->ObjvsICsum_nobeam->Fill(mTDC.obj.at(0),IC.sum); //ungated pid
       bool stat = beam_pid->getPID(mTDC.obj.at(0),mTDC.xfp.at(0));
+      //if (beam_pid->Z > 0) cout << beam_pid->Z << " " << beam_pid->A << endl;
+      //cout << stat << endl;
+      //cout << "did i get a beam particle? " << stat << endl;
       if(!stat)
+      {
+      //  cout << "   no :(" << endl;
         return false;
+      }
       GetBeamId(beam_pid->Z); //assigns beamID 0-Ca37; 1-K36; 2-Ar35; 3-Cl34;
 
       track->CRDC[0] = CRDC[0];
@@ -979,13 +1231,35 @@ bool S800::analyze()
 
       //Tracking through the focal plane
       //this is for the initial tracking, will switch A, Z later and tack again
-      track->CalculateTracking(35, 19); //A,Z for K35
+      //TODO tracking for initial Si-23?
+      track->CalculateTracking(23, 14); //A,Z for K35
       float correctedObj = mTDC.obj.at(0) + ObjCorr[0]*track->afp +
                            ObjCorr[1]*CRDC[0].x_gravity;
       float correctedXFP = mTDC.xfp.at(0) + ObjCorr[0]*track->afp +
                            ObjCorr[1]*CRDC[0].x_gravity;
-  
+
       mTDC.objCorrected.push_back(correctedObj);
+
+      //Si23 beam
+      if (beam_pid->Z == 14 && beam_pid->A == 23)
+      {
+        Histo->ObjvsICsum_Si23->Fill(mTDC.objCorrected.at(0),IC.sum);
+      }
+      //Al22 beam
+      if (beam_pid->Z == 13 && beam_pid->A == 22)
+      {
+        Histo->ObjvsICsum_Al22->Fill(mTDC.objCorrected.at(0),IC.sum);
+      }
+      //Mg21 beam
+      if (beam_pid->Z == 12 && beam_pid->A == 21)
+      {
+        Histo->ObjvsICsum_Mg21->Fill(mTDC.objCorrected.at(0),IC.sum);
+      }
+      //Na20 beam
+      if (beam_pid->Z == 11 && beam_pid->A == 20)
+      {
+        Histo->ObjvsICsum_Na20->Fill(mTDC.objCorrected.at(0),IC.sum);
+      }
 
       if(beam_pid->Z == 20 && beam_pid->A == 37)
       {
@@ -1013,23 +1287,41 @@ bool S800::analyze()
       {
         Histo->ObjvsICsum_Cl34->Fill(mTDC.objCorrected.at(0),IC.sum);
       }
-      
+//cout << mTDC.obj.at(0) << " " << mTDC.objCorrected.at(0) << endl;
       Histo->ObjvsICsum->Fill(mTDC.obj.at(0),IC.sum);
       Histo->ObjvsICsum_corr->Fill(mTDC.objCorrected.at(0),IC.sum);
   
+      //Reset PID flags
+      Ne17_flag = false;
+      Ne18_flag = false;
+
       if(beam_pid->Z >0 && beam_pid->A >0)
       {
+        //cout << S800Setting << " " << BeamID << endl;
         bool stat2 = residue_pid[S800Setting][BeamID]->getPID(mTDC.objCorrected.at(0),IC.sum);
+        //if (residue_pid[S800Setting][BeamID]->A == 22) cout << "here" << endl;
+        //cout << "here " << stat2 << endl;
+        //cout << "here0" << endl;
         if(!stat2) return false;
+
+        //Set PID flags
+        if (residue_pid[S800Setting][BeamID]->Z == 10 && residue_pid[S800Setting][BeamID]->A == 17) Ne17_flag = true;
+        if (residue_pid[S800Setting][BeamID]->Z == 10 && residue_pid[S800Setting][BeamID]->A == 18) Ne18_flag = true;
+
+        //TODO need more loss files
+       // if (residue_pid[S800Setting][BeamID]->Z == 10) return false;
 
         track->CRDC[0] = CRDC[0];
         track->CRDC[1] = CRDC[1];
-
+        //cout << residue_pid[S800Setting][BeamID]->Z << " " << residue_pid[S800Setting][BeamID]->A << endl;
+        //if (residue_pid[S800Setting][BeamID]->Z == 10) cout << residue_pid[S800Setting][BeamID]->A << endl;
         //second time tracking, this time calculating using the correct A,Z
+        //cout << "here" << endl;
         track->CalculateTracking(residue_pid[S800Setting][BeamID]->A, residue_pid[S800Setting][BeamID]->Z);
         track->GetThetaPhi(track->ata,track->bta);
         Histo->atavsbta->Fill(track->ata*180./acos(-1),track->bta*180./acos(-1));
-  
+        Histo->ata1D->Fill(track->ata*180./acos(-1));
+        Histo->bta1D->Fill(track->bta*180./acos(-1));
         //Looking at corrections
         Histo->Objvsafp->Fill(mTDC.objCorrected.at(0),track->afp);
         Histo->ObjvsCRDC1X->Fill(mTDC.objCorrected.at(0),CRDC[0].x_gravity);
@@ -1229,8 +1521,8 @@ S800FpTrack::S800FpTrack(S800Map ***map0) {
   scatter_cor = -65000.;
 
   /* Variables */
-  anglea = 0; /* degree */
-  angleb = 0; /* degree */
+  anglea = 0.0133169; /* radians */ //starting value of zero
+  angleb = 0.0061982; /* radians */
 
   anglea_cor = 0; /* degree */
   angleb_cor = 0; /* degree */
@@ -1292,77 +1584,68 @@ void S800FpTrack::CalculateTracking(int A, int Z) {
   
   //pick the right map for tracking
   int mapID = 0;
-  //Ca37 ---- I have 38Ca being the second lobe of 37Ca sometimes
-  if (S800Setting == 0 && ((Z==20 && A==37) || (Z==20 && A==38)))
+  if (S800Setting == 1 && Z==14 && A==23)
+    mapID = 0;
+  else if (S800Setting == 1 && Z==13 && A==22)
+    mapID = 1;
+  else if (S800Setting == 1 && Z==12 && A==21)
+    mapID = 2;
+  else if (S800Setting == 1 && Z==12 && A==20)
+    mapID = 3;
+  else if (S800Setting == 1 && Z==10 && A==17)
+    mapID = 4;
+  else if (S800Setting == 1 && Z==10 && A==18)
+    mapID = 5;
+  else if (S800Setting == 1 && Z==13 && A==23)
+    mapID = 6;
+  else if (S800Setting == 1 && Z==11 && A==20)
+    mapID = 7;
+  else if (S800Setting == 1 && Z==11 && A==21)
+    mapID = 8;
+  else if (S800Setting == 1 && Z==12 && A==22)
+    mapID = 9;
+  else if (S800Setting == 1 && Z==10 && A==19)
     mapID = 10;
-  else if (S800Setting == 1 && (Z==20 && A==37))
-    mapID = 8;
-
-  //Ca36
-  else if (S800Setting == 0 && (Z==20 && A==36))
-    mapID = 0;
-    //no Ca36 in setting 1
-
-  //Ca35
-  else if (S800Setting == 0 && (Z==20 && A==35))
-    mapID = 1;
-    //no Ca35 in setting 1
-
-  //K36
-  else if (S800Setting == 0 && (Z==19 && A==36))
+  else if (S800Setting == 1 && Z==9 && A==18)
     mapID = 11;
-  else if (S800Setting == 1 && (Z==19 && A==36))
+  else if (S800Setting == 1 && Z==9 && A==17)
+    mapID = 12;
+  else if (S800Setting == 1 && Z==8 && A==15)
+    mapID = 13;
+  else if (S800Setting == 1 && Z==8 && A==16)
+    mapID = 14;
+  else if (S800Setting == 1 && Z==10 && A==20)
+    mapID = 15;
+  else if (S800Setting == 1 && Z==8 && A==14)
+    mapID = 16;
+  else if (S800Setting == 1 && Z==7 && A==14)
+    mapID = 17;
+  else if (S800Setting == 1 && Z==7 && A==13)
+    mapID = 18;
+  else if (S800Setting == 1 && Z==6 && A==12)
+    mapID = 19;
+  else if (S800Setting == 1 && Z==6 && A==11)
+    mapID = 20;
+  else if (S800Setting == 1 && Z==14 && A==24)
+    mapID = 21;
+  
+  //TODO Get inverse maps for setting 2
+  else if (S800Setting == 2 && Z==14 && A==22)
+    mapID = 0;
+  else if (S800Setting == 2 && Z==14 && A==23)
     mapID = 1;
 
-  //K35
-  else if (S800Setting == 0 && (Z==19 && A==35))
-    mapID = 2;
-  else if (S800Setting == 1 && (Z==19 && A==35))
+  //TODO Get inverse maps for setting 0
+  else if (S800Setting == 0 && Z==14 && A==23)
     mapID = 0;
+  else if (S800Setting == 0 && Z==12 && A==21)
+    mapID = 1;
 
-  //Ar35
-  else if (S800Setting == 0 && (Z==18 && A==35))
-    mapID = 3;
-  else if (S800Setting == 1 && (Z==18 && A==35))
-    mapID = 2;
 
-  //Ar34
-  else if (S800Setting == 0 && (Z==18 && A==34))
-    mapID = 4;
-  else if (S800Setting == 1 && (Z==18 && A==34))
-    mapID = 3;
-  //Ar33
-  else if (S800Setting == 0 && (Z==18 && A==33))
-    mapID = 5;
-  else if (S800Setting == 1 && (Z==18 && A==33))
-    mapID = 4;
-  //Ar32
-  else if (S800Setting == 0 && (Z==18 && A==32))
-    mapID = 6;
-    //no Ar32 in setting 1
-  //Cl34
-  else if (S800Setting == 1 && (Z==17 && A==34))
-    mapID = 5;
-  else if (S800Setting == 0 && (Z==17 && A==34))
-    mapID = 12;
-  //Cl33
-  else if (S800Setting == 0 && (Z==17 && A==33))
-    mapID = 7;
-  else if (S800Setting == 1 && (Z==17 && A==33))
-    mapID = 6;
-  //Cl32
-  else if (S800Setting == 0 && (Z==17 && A==32))
-    mapID = 8;
-  else if (S800Setting == 1 && (Z==17 && A==32))
-    mapID = 7;
-  //Cl31
-  else if (S800Setting == 0 && (Z==17 && A==31))
-    mapID = 8;
-
-  //run30, run31, run32, and other just use mapID=0
   else
   {
-    //cout << "no map setting for Z=" << Z << " A=" << A << " on S800 Setting " << S800Setting << endl;
+    cout << "no map setting for Z=" << Z << " A=" << A << " on S800 Setting " << S800Setting << endl;
+    abort(); //Don't accidently use the wrong inv map
   }
   
   if (!map[S800Setting][mapID]->WasLoaded()) {cout << "error!!!" << endl; return; }
@@ -1396,7 +1679,6 @@ void S800FpTrack::CalculateTracking(int A, int Z) {
   dta = map[S800Setting][mapID]->Calculate((int)order, 3, input);
   ata += anglea; /* Add theta offset in radians */
   bta += angleb; /* Add phi offset in radians */
-
   
   ata_cor = ata + dta*ata_dtacor;
   bta_cor = bta + yta*bta_ytacor;
@@ -1465,7 +1747,7 @@ void S800FpTrack::GetThetaPhi(double ata0, double bta0)
   //cout << sineata << " " << sinebta << endl;
 
   double result = sqrt(sineata*sineata + sinebta*sinebta);
-  
+
   if(result >1)
   {
     result =1;
@@ -1486,18 +1768,18 @@ void S800FpTrack::GetThetaPhi(double ata0, double bta0)
 void S800::GetBeamId(int Z)
  {
   // beam numbers
-  // 0 - Ca37
-  // 1 - K36
-  // 2 - Ar35
-  // 3 - Cl34
+  // 0 - Si23
+  // 1 - Al22
+  // 2 - Mg21
+  // 3 - Na20
 
-  if(Z==20)
+  if(Z==14)
     BeamID = 0;
-  else if(Z==19)
+  else if(Z==13)
     BeamID = 1;
-  else if(Z==18)
+  else if(Z==12)
     BeamID = 2;
-  else if(Z==17)
+  else if(Z==11)
     BeamID = 3;
   else
   {

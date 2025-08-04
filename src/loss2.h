@@ -16,6 +16,7 @@ class CLoss2
   int N;
   float *Ein;
   float *dedx;
+  string savefile;
   
   CLoss2(string);
   ~CLoss2();

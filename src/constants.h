@@ -10,7 +10,7 @@ const double c = 30.;
 
 const double vfact = c/sqrt(m0);  //velocity (cm/ns) = vfact *sqrt(2.*E(MeV)/A(amu))
 const double pi = acos(-1.);
-const double rad_to_deg = acos(-1.)/180.;
+const double rad_to_deg = 180./acos(-1.);
 //masses excesses from AME2016 compilation
 const double mass_n = 8.07132;
 const double mass_p = 7.28897;
@@ -73,8 +73,18 @@ const double mass_20Ne = -7.0419;
 const double mass_21Ne = -5.7317;
 const double mass_22Ne = -8.0247;
 const double mass_19Na = 12.9293;
+const double mass_20Na = 6.8505;
+const double mass_21Na = -2.18486;
+const double mass_19Mg = 31.84;
 const double mass_20Mg = 17.4777;
+const double mass_21Mg = 10.9039;
+const double mass_22Mg = -0.39999;
 const double mass_21Al = 27.100;
+const double mass_22Al = 18.200;
+const double mass_23Al = 6.7481;
+const double mass_22Si = 33.6;
+const double mass_23Si = 24.000;
+const double mass_24Si = 10.745;
 
 //total masses
 const double Mass_n = m0+mass_n;
@@ -138,7 +148,17 @@ const double Mass_20Ne = 20.*m0 + mass_20Ne;
 const double Mass_21Ne = 21.*m0 + mass_21Ne;
 const double Mass_22Ne = 22.*m0 + mass_22Ne;
 const double Mass_19Na = 19.*m0 + mass_19Na;
+const double Mass_20Na = 20.*m0 + mass_20Na;
+const double Mass_21Na = 21.*m0 + mass_21Na;
+const double Mass_19Mg = 19.*m0 + mass_19Mg;
 const double Mass_20Mg = 20.*m0 + mass_20Mg;
+const double Mass_21Mg = 21.*m0 + mass_21Mg;
+const double Mass_22Mg = 22.*m0 + mass_22Mg;
 const double Mass_21Al = 21.*m0 + mass_21Al;
+const double Mass_22Al = 22.*m0 + mass_22Al;
+const double Mass_23Al = 23.*m0 + mass_23Al;
+const double Mass_22Si = 22.*m0 + mass_22Si;
+const double Mass_23Si = 23.*m0 + mass_23Si;
+const double Mass_24Si = 24.*m0 + mass_24Si;
 
 #endif

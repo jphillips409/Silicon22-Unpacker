@@ -6,6 +6,7 @@
 #include <vector>
 #include "histo_sort.h"
 #include "histo_read.h"
+#include "s800_results.h"
 
 class Event;
 class fiber;
@@ -20,7 +21,8 @@ public:
 	histo_sort* Histo;
 
 	bool unpack(ifstream*);
-	void analyze();
+  void SetTarget(double Targetdist);
+	void analyze(const s800_results& S800_results);
 	
 	Event* SIPMevent;
 	fiber* Fiber;
@@ -37,7 +39,17 @@ public:
 	int Nmatched = 0;
 	int Nskipped = 0;
 
+  //For event efficiency
+  int evt_BRMatch = 0;
+  int evt_BNOTR = 0;
+  int evt_RNOTB = 0;
+
+  //Flag for matched
+  bool fibmatch = false;
+
 	long nevts;
+
+  float dist_pub;
 
 private:
 	// Scale values for gain matching

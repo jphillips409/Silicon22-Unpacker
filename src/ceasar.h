@@ -2,8 +2,9 @@
 #include "histo_read.h"
 #include "TRandom.h"
 #include "caen.h"
-#include "TDC1190.h"
+#include "mtdc.h"
 #include "calibrate.h"
+#include "TVector3.h"
 #include <cmath>
 
 
@@ -12,9 +13,10 @@ struct dataEC
   int ienergy;
   int id;
   int itime;
+  float time;
   int iRing;
   int iLoc;
-  int iqdc;
+  int iadc;
   int ichan;
   int addbackmult;
   float theta;
@@ -22,7 +24,7 @@ struct dataEC
   float Total;
   float dop_energy;
   float phi;
-  float time;
+  TVector3 pos;
 };
 
 struct dataTC
@@ -49,8 +51,8 @@ class ceasar
   histo_sort * Histo;
   histo_read * Histo_read;
   //doppler *Doppler;
-  caen Caen;
-  TDC1190 ** tdc;
+  caen Caen[6];
+  mtdc Mtdc[6];
 
   mapC MapC[6][32];
   calibrate * calCeasar;
@@ -60,20 +62,26 @@ class ceasar
   ceasar(TRandom* ran0, histo_sort * Histo0,histo_read * Histo1, float shift0);
   ~ceasar();
 //  bool unpack(unsigned short *point);
-  bool unpack(unsigned short *point, unsigned short *tdcpoint, int runno);
+  bool unpack(unsigned short *point, int runno);
 
-  void init(float shift);
+  void init();
 
+  string chipmap;
+  string calfile;
+  string posmap;
+  
   dataEC DataEC[192];
   dataTC DataTC[192];
   
   dataEC select[192];
   dataEC added[192];
+  dataEC tempAdd; //For summing and then passing to added
   dataEC NoTadded[192];
   int N_NoTaddback;
   int Nselect;
   int Nadded;
 
+  float mag[10][24]; //10 rings and 24 max detectors
   float angle[10][24]; //10 rings and 24 max detectors
   float angle2[10][24];
   float Txfp[3];
@@ -82,8 +90,9 @@ class ceasar
 
   int NE;
   int NT;
+  int NTSelect; //Number of select gammas
 
 
-  void reset();
+  void Reset();
 
 };

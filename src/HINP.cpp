@@ -26,34 +26,73 @@ HINP::HINP()
 bool HINP::unpackSi_HINP4(unsigned short *&point)
 {
 
+/*
   unsigned short *endpos = point;
-  point++;
-  point++;
+  //point++;
+  //point++;
   unsigned short words = *point++;
   endpos += words;
 
   unsigned short marker;
 
   marker = *point++;
-  
-  if (marker != 0x1ff0)
+ 
+ 
+  if (marker != 0x1ff3)
   { 
     cout << "Did not read the proper XLM marker. Was " << hex << marker << " expected 0x1ff3" << dec <<endl;
     return false;
   }
   
   NstripsRead = 0;
-  NWords = *point;
+  NWords = *point++;
+  NWords2 = *point++;
+  
+  //cout << NWords << endl;
+  point += NWords;
+  return true;
+ */
 
+  //point++;
+  //point++;
+  unsigned short words = *point++;
+  //endpos += words;
+
+  unsigned short marker;
+
+  marker = *point++;
+ 
+  //cout << hex << marker << endl;
+  if (marker != 0x1ff3)
+  { 
+    cout << "Did not read the proper XLM marker. Was " << hex << marker << " expected 0x1ff3" << dec <<endl;
+    return false;
+  }
+
+  unsigned short *endpos = point;  
+  NstripsRead = 0;
+  NWords = *point;
+  //NWords2 = *point++;
+  
+  //cout << "HINP NWords " << NWords << endl;
+  //point += NWords;
+  //cout << "point " << *point << " point 2 " << hex << *(point+1) << dec << endl;
+  //return true;
+  
+
+  //cout << hex << marker << " "  << NWords << dec << endl;
   //unsigned short * endHINP = point;
 
-  if (NWords > 2048)
+  if (NWords >= 2048)
   {
     point+=10;
     return false;
   }
+  
+  endpos += NWords+2;
 
-  point += 2;
+  point++;
+  point++;
 
   NstripsRead = *point;
 
@@ -65,6 +104,7 @@ bool HINP::unpackSi_HINP4(unsigned short *&point)
     point+=8;
     return false;
   }
+  //cout << "Nstripsread " << hex << NstripsRead << dec << endl;
   NstripsRead /= 4;
 
   if (NstripsRead > 512) 
@@ -90,6 +130,7 @@ bool HINP::unpackSi_HINP4(unsigned short *&point)
   }
 
   point += 5;
+  //cout << "point after skip " << hex << *point << dec << endl;
   
   //cout << "NStrips " << NstripsRead <<  endl;
   for (int istrip = 0;istrip < NstripsRead;istrip++)
@@ -101,6 +142,7 @@ bool HINP::unpackSi_HINP4(unsigned short *&point)
     unsigned short ilowenergy = *point++;
     unsigned short itime =  *point++;
     unsigned short boardNum;
+    //cout << hex << id << " " << chipNum << " " << chanNum << " " << ienergy << " " << ilowenergy << dec << endl;
 
     //cout << "id " << id << endl;
     //cout << "chipNum " <<chipNum << endl;
@@ -109,46 +151,37 @@ bool HINP::unpackSi_HINP4(unsigned short *&point)
     //cout << "ilowenergy " << ilowenergy << endl;
     //cout << "itime " << itime << endl;
 
-    if (chipNum > 24)  //W zero telescopes
-    { 
-      //WW telescope chips are not interlaced
-      if (chipNum%2 != 0) boardNum = chipNum/2 + 1;
-      else boardNum = chipNum/2;
-
-      if (boardNum == 14)
-      {
-         //Maps the channel numbers onto the WW strips for the E-back.
-        //Channel 0 = strip 8 and channel 7 = strip 1 starting from the bottom
-        if (chanNum == 7) chanNum = 0;
-        else if (chanNum == 6) chanNum = 1;
-        else if (chanNum == 5) chanNum = 2;
-        else if (chanNum == 4) chanNum = 3;
-        else if (chanNum == 3) chanNum = 4;
-        else if (chanNum == 2) chanNum = 5;
-        else if (chanNum == 1) chanNum = 6;
-        else if (chanNum == 0) chanNum = 7;
-      }
-    }
-
     //Gobbi telescopes
     //each board has 2 chips, convert so that it is per Board
-    else if (chipNum%2 == 0)
+    if (chipNum%2 == 0)
     { //for even chipnum (second half of chip)
       chanNum = 2*chanNum;//nick
       //chanNum = 16+chanNum;
       //chipNum /= 2;
       boardNum = chipNum/2;
+      //cout << "b Num " << boardNum << endl;
     }
     else
     { //for odd chipnum (first half of chip)
       chanNum = 2*chanNum+1; //nick
       //chanNum = chanNum;
       boardNum = chipNum/2 + 1;
+      //cout << "b Num " << boardNum << endl;
     }
     //cout << "  boardNum " << boardNum << endl;
     //cout << "  chanNum " << chanNum << endl;
 
-    
+    if (chanNum > 31)
+    {
+      cout << "chanNum too big" << endl;
+      return false;
+    }
+    if (boardNum > 8)
+    {
+      cout << "boardNum too big" << endl;
+      return false;
+    }
+
     //save information to arrays
     board[istrip] = boardNum;
     chan[istrip] = chanNum;
@@ -158,7 +191,7 @@ bool HINP::unpackSi_HINP4(unsigned short *&point)
 
   } //end loop over strips
     
-  //point = endHINP;
+  point = endpos;
 
   return true;
 }

@@ -16,12 +16,61 @@ correl2::correl2()
   particle.push_back(&alpha);
   
   //new slew of particles
+  //Carbon isotopes
+  C11.init(6,11);
+  particle.push_back(&C11);
+  C12.init(6,12);
+  particle.push_back(&C12);
+  //Nitrogen isotopes
+  N13.init(7,13);
+  particle.push_back(&N13);
+  N14.init(7,14);
+  particle.push_back(&N14);
+  //Oxygen isotopes
+  O14.init(8,14);
+  particle.push_back(&O14);
+  O15.init(8,15);
+  particle.push_back(&O15);
+  O16.init(8,16);
+  particle.push_back(&O16);
+  //Fluorine isotopes
+  F17.init(9,17);
+  particle.push_back(&F17);
+  F18.init(9,18);
+  particle.push_back(&F18);
+  //Neon isotopes
+  Ne17.init(10,17);
+  particle.push_back(&Ne17);
+  Ne18.init(10,18);
+  particle.push_back(&Ne18);
+  Ne19.init(10,19);
+  particle.push_back(&Ne19);
+  Ne20.init(10,20);
+  particle.push_back(&Ne20);
+  //Sodium isotopes
+  Na20.init(11,20);
+  particle.push_back(&Na20);
+  Na21.init(11,21);
+  particle.push_back(&Na21);
   //Magnesium isotopes
   Mg20.init(12,20);
   particle.push_back(&Mg20);
+  Mg21.init(12,21);
+  particle.push_back(&Mg21);
+  Mg22.init(12,22);
+  particle.push_back(&Mg22);
+  //Aluminum isotopes
+  Al22.init(13,22);
+  particle.push_back(&Al22);
+  Al23.init(13,23);
+  particle.push_back(&Al23);
   //Silicon isotopes
   Si22.init(14,22);
   particle.push_back(&Si22);
+  Si23.init(14,23);
+  particle.push_back(&Si23);
+  Si24.init(14,24);
+  particle.push_back(&Si24);
   Si28.init(14,28);
   particle.push_back(&Si28);
   //Phosphorus isotopes
@@ -153,7 +202,11 @@ float correl2::findErel()
     //cout << " Ekin = " << frag[i]->Ekin;
     //cout << " mass = " << frag[i]->mass << endl;
 
-    if(frag[i]->mass > 1000000) abort();
+    if(frag[i]->mass > 1000000) 
+    {
+      cout << "FRAG MASS TOO LARGE" << endl;
+      abort();
+    }
     
     for (int j=0;j<3;j++)
     {

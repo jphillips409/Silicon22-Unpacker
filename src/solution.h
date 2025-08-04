@@ -44,6 +44,7 @@ class solution
   float fneighbours; //gives the number of added neighbors
   float bneighbours;
   float dneighbours;
+	float qdc; //Only for CsI
   int ifront;
   int iback;
   int ide;
@@ -67,6 +68,8 @@ class solution
   float Ypos;
   float theta;
   float phi;
+  float theta_s800;
+  float phi_s800;
   float energyTot;
   float Ekin;
   float velocity;

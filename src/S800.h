@@ -117,7 +117,7 @@ struct ic
 //I'm going to use vectors here since this is multihit
 //We may want to revist this at some point
 //KB 
-struct mtdc
+struct s8mtdc
 {
   vector <float> e1up;
   vector <float> e1down;
@@ -273,7 +273,7 @@ class S800
   hodo Hodo[32];
   crdc CRDC[2];
   ic IC;
-  mtdc mTDC;
+  s8mtdc mTDC;
   pid * beam_pid;
   pid *** residue_pid;
 
@@ -291,20 +291,26 @@ class S800
   int BeamID;
   void GetBeamId(int);
    
+  //Add timestamp
+  long double tstamp;
+
   
   float Pressure[200];
   float Scaling[200];
 
-
+  //Flags for residue PID, don't need to send fragments to PID subroutine if I don't have masses/loss files yet
+  bool Ne17_flag;
+  bool Ne18_flag;
   
-  static const int NPads = 224;
+
+  static const int NPads = 480;
   int CRDCPeds[2][NPads];
   float Chargeslope[2][2][NPads];
   float Chargeintercept[2][2][NPads];
   float CRDCSlopeX[2]; //[CRDC]
   float CRDCSlopeY[2]; //[CRDC]
   float CRDCOffsetX[2];//[CRDC #][run54/56 = 0, run109/110 = 1]
-  float CRDCOffsetY[2][2];
+  float CRDCOffsetY[2][6];
   float ObjCorr[2]; //1 - obj/mrad  2 - obj/mm
   int gravity_width;
 
@@ -314,7 +320,11 @@ class S800
   //  S800FpTrack track;
 
 
+  int SRStot = 0;
+  int SRSgood = 0;
+  int SRSbad = 0;
 
+  int S800Huge = 0;
 
  private:
   TRandom *ran;
@@ -332,7 +342,7 @@ class S800
   unsigned short* DecodeS800TimeOfFlight(unsigned short *pevent);
   unsigned short* DecodeS800Trigger(unsigned short *pevent);
   unsigned short* DecodeS800HodoScope(unsigned short *pevent);
-
+  unsigned short* DecodeS800MPDC(unsigned short *pevent, int runno);
   unsigned short* DecodeS800NewMultiHitTDC(unsigned short *pevent);
 
 };

@@ -8,7 +8,8 @@
 #include "calibrate.h"
 #include "HINP.h"
 #include "caen.h"
-#include "TDC1190.h"
+#include "mtdc.h"
+#include "s800_results.h"
 
 //two structures for matching up CsI times and Energies
 struct dataE
@@ -18,33 +19,24 @@ struct dataE
   int itime;
   float energy;
   float time;
+	float qdcmatch; //psd parameter, filled in psd calc
+  float qdc; //psd parameter, filled in psd calc
 };
 struct dataT
 {
   int itime;
   int id;
+  float time;
+  int itdc;
+  int ichan;
 };
-
-//Struct needed to pass s800 results in for time gates
-struct s800_results
+struct dataQ
 {
-  bool trig_coin;
-  bool trig_singles;
-  bool trig_s800_singles;
-  int Zbeam;
-  int Abeam;
-  int Zresidue;
-  int Aresidue;
-  void Reset()
-  {
-    trig_coin = false;
-    trig_singles = false;
-    trig_s800_singles = false;
-    Zbeam =-1;
-    Abeam=-1;
-    Zresidue=-1;
-    Aresidue=-1;
-  }
+  int ienergy;
+  int id;
+  int itime;
+  float energy;
+  float time;
 };
 
 class gobbi
@@ -59,11 +51,13 @@ class gobbi
   telescope * S800;
   HINP * SiADC;
   caen * CsIADC;
-  TDC1190 * CsITDC;
+  mtdc * CsITDC;
+  caen * CsIQDC;
 
   calibrate * FrontEcal;
   calibrate * BackEcal;
   calibrate * CsIEcal;
+  calibrate * CsIEcal90;
 
   calibrate * FrontTimecal;
   calibrate * BackTimecal;
@@ -79,11 +73,12 @@ class gobbi
   bool unpackSi_HINP4(unsigned short*& point);
   bool unpackCsI_ADC(unsigned short*& point);
   bool unpackCsI_TDC(unsigned short*& point);
+  bool unpackCsI_QDC(unsigned short*& point);
   void addFrontEvent(int quad, unsigned short chan, unsigned short high, unsigned short low, unsigned short time);
   void addBackEvent(int quad, unsigned short chan, unsigned short high, unsigned short low, unsigned short time);
   void addCsIEvent(int quad, unsigned short chan, unsigned short high, unsigned short low, unsigned short time);
 
-  int analyze(s800_results S800_results);
+  int analyze(s800_results S800_results, int runno);
   void SiNeighbours();
   int matchTele();
 
@@ -97,9 +92,12 @@ class gobbi
 
   int NE;
   int NT;
+  int NQ;
   dataE DataE[56];
   dataT DataT[56];
-  void MatchCsIEnergyTime();
+	dataQ DataQ[56];
+  void MatchCsIEnergyTime(int runno);
+	void CsIQDCMatch();
 
   int GrunNum = 0;
 
@@ -109,6 +107,21 @@ class gobbi
 
   int csiTimeMin[20];
   int csiTimeMax[20];
+
+  int num_protons = 0;
+
+  int num1p = 0;
+  bool flag1p = 0;
+  int num2p = 0;
+  bool flag2p = 0;
+  bool flag3p = 0;
+  bool flagalpha = 0;
+
+  //Tracking types of S800 coincidence events
+  bool S800coinc_Si = false; //Only Si
+  bool S800coinc_CsI = false; //Only CsI
+  bool S800coinc_both = false; //Si and CsI
+  bool S800_complete = false; //Matched Si/CsI
 
 };
 
