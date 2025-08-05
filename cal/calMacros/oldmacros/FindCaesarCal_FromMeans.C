@@ -1,0 +1,82 @@
+void FindCaesarCal_FromMeans()
+{
+
+  ifstream inMeans("CaesarMeans.txt");
+  if(!inMeans.is_open())
+    {
+      cout << "No text file found for Caesar Means" << endl;
+      return;
+    }
+
+  ofstream outCal("Caesar.cal");
+  // outCal << "detnum" << "\t" << "slope" << "\t" <<   "inter" << endl;
+
+  char dum[200];
+  inMeans.getline(dum,200);
+
+  TCanvas * mycan = new TCanvas("mycan","mycan");
+  mycan->Draw();  
+  mycan->cd(0);
+  int NCaesar = 192; //Number of caesar detectors
+  float energies[5] = {0.6617,0.898,1.4608,1.8361,2.6145}; //MeV
+  for(int i=0;i<NCaesar;i++)
+    {
+
+      float peaks[5];
+      int detnum;
+      float slope = -1.;
+      float inter = 0.;
+
+      inMeans >> detnum >> peaks[0] >> peaks[1] >> peaks[2] >> peaks[3] >> peaks[4];
+
+      if(peaks[0] == -1 && peaks[1] == -1)
+	{
+	  slope = -1;
+	  inter = 0;
+	}
+
+      else
+	{
+
+	  mycan->cd(0);
+	  
+	  TGraph *mygraph = new TGraph(5,peaks,energies);
+	  mygraph->Draw("AP");
+	  mygraph->SetMarkerStyle(20);
+
+  
+	  TF1 * fit = new TF1("fit","pol1",0,2000);
+	  mygraph->Fit(fit,"R");
+
+	  mycan->Modified();
+	  mycan->Update();
+
+	  inter = fit->GetParameter(0);
+	  slope = fit->GetParameter(1);
+
+	  //Uncomment to see the fits one by one
+	  // TMarker * mark;
+	  // mark = (TMarker*)mycan->WaitPrimitive("TMarker");
+	  // delete mark;
+	  
+	}
+
+      outCal << 0 << "\t" << detnum << "\t" << slope << "\t" << inter << endl;
+      cout << detnum << "\t" << slope << "\t" << inter << endl;
+      
+    }
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  return;
+}
